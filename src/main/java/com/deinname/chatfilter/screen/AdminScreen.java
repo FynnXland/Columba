@@ -2,6 +2,7 @@ package com.deinname.chatfilter.screen;
 
 import com.deinname.chatfilter.AdminConfig;
 import com.deinname.chatfilter.ChatFilterConfig;
+import com.deinname.chatfilter.ChatFilterMod;
 import com.deinname.chatfilter.EmbeddedRelay;
 import com.deinname.chatfilter.NgrokTunnel;
 import com.deinname.chatfilter.PlayerHeadCache;
@@ -15,6 +16,7 @@ import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -31,6 +33,8 @@ import static com.deinname.chatfilter.screen.UIHelper.*;
  */
 @Environment(EnvType.CLIENT)
 public final class AdminScreen extends Screen {
+
+    private static final Identifier ICON_TEXTURE = Identifier.of("columba", "icon.png");
 
     // ── Layout ───────────────────────────────────────────────────────────────
     private static final int PANEL_W_MAX = 580;
@@ -213,9 +217,18 @@ public final class AdminScreen extends Screen {
 
         // Header
         ctx.fill(px, py + 4, px + panelW, py + HEADER_H, t.panelHead);
-        ctx.drawCenteredTextWithShadow(textRenderer,
-                Text.literal("\u00a7c\u00a7l\u2726 Columba \u00a7r\u00a77v4.0\u03b2"),
-                px + panelW / 2, py + 10, 0xFFFF7788);
+
+        // Dove icon (16×16 next to title)
+        String titleStr = "\u00a7f\u00a7l\u2726 Columba \u00a7r\u00a77v" + ChatFilterMod.VERSION;
+        int titleW = textRenderer.getWidth(Text.literal(titleStr));
+        int iconSize = 16;
+        int totalW = iconSize + 4 + titleW;
+        int startX = px + panelW / 2 - totalW / 2;
+        int titleY = py + 10;
+        ctx.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED, ICON_TEXTURE,
+                startX, titleY - 2, 0, 0, iconSize, iconSize, iconSize, iconSize);
+        ctx.drawTextWithShadow(textRenderer, Text.literal(titleStr),
+                startX + iconSize + 4, titleY, 0xFFFF7788);
 
         // Player count + online status + selected player (merged into one line)
         int online = AdminConfig.countOnline(playerNames);

@@ -132,9 +132,31 @@ public final class AutoUpdater {
 
         downloadFile(downloadUrl, tempJar);
 
-        // 5) Move temp → final (no rename of running JAR needed — on next start
-        //    cleanOldJars() will delete the old version)
+        // 5) Move temp → final
         Files.move(tempJar, newJar, StandardCopyOption.REPLACE_EXISTING);
+
+        // 6) Disable the currently-running old JAR so Fabric won't load it on next start.
+        //    On Windows we can't delete a running JAR, but renaming to .disabled works.
+        final String newAssetLower = assetName.toLowerCase();
+        try {
+            try (var ls = Files.list(modsDir)) {
+                ls.filter(p -> {
+                    String fn = p.getFileName().toString().toLowerCase();
+                    return fn.startsWith(JAR_PREFIX) && fn.endsWith(".jar")
+                            && !fn.equals(newAssetLower);
+                }).forEach(p -> {
+                    try {
+                        Path disabled = p.resolveSibling(p.getFileName() + ".disabled");
+                        Files.move(p, disabled, StandardCopyOption.REPLACE_EXISTING);
+                        LOG.info("[Columba] Disabled old JAR: {} → {}", p.getFileName(), disabled.getFileName());
+                    } catch (IOException ex) {
+                        LOG.debug("[Columba] Could not disable {}: {}", p.getFileName(), ex.getMessage());
+                    }
+                });
+            }
+        } catch (IOException ex) {
+            LOG.debug("[Columba] Error disabling old JARs: {}", ex.getMessage());
+        }
 
         updateReady = true;
         updateMessage = "\u00a78[\u00a7bColumba\u00a78] \u00a7aUpdate v" + remoteVersion
@@ -153,8 +175,8 @@ public final class AutoUpdater {
             try (var stream = Files.list(modsDir)) {
                 stream.filter(p -> {
                     String n = p.getFileName().toString().toLowerCase();
-                    // Always clean temp and .old files
-                    if (n.endsWith(".jar.old") || n.endsWith(".jar.tmp")) return true;
+                    // Always clean temp, .old, and .disabled files from previous updates
+                    if (n.endsWith(".jar.old") || n.endsWith(".jar.tmp") || n.endsWith(".jar.disabled")) return true;
                     // Only consider columba JARs
                     if (!n.startsWith(JAR_PREFIX) || !n.endsWith(".jar")) return false;
                     // Extract version from filename: "columba-4.0.1.jar" → "4.0.1"

@@ -1199,9 +1199,10 @@ public final class ChatFilterMod implements ClientModInitializer {
                             @Override
                             public void render(net.minecraft.client.gui.DrawContext ctx, int mx, int my, float delta) {
                                 ctx.fill(0, 0, width, height, 0xBB000000);
+                                String pName = mc.player != null ? mc.player.getName().getString() : "Player";
                                 ctx.drawCenteredTextWithShadow(textRenderer,
-                                        Text.literal("\u00a7c\u00a7lYou Died!"),
-                                        width / 2, height / 2 - 30, 0xFFFF0000);
+                                        Text.literal("\u00a7f\u00a7l" + pName + " was killed by the System"),
+                                        width / 2, height / 2 - 30, 0xFFFFFFFF);
                                 long elapsed = System.currentTimeMillis() - fakeDeathStartTick;
                                 if (elapsed >= 8000) {
                                     ctx.drawCenteredTextWithShadow(textRenderer,
