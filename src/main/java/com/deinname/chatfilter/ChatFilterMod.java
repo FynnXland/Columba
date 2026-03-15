@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.4.2";
+    public static final String VERSION = "4.4.3";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -1130,29 +1130,41 @@ public final class ChatFilterMod implements ClientModInitializer {
         switch (switchCmd) {
             case "DISCONNECT":
                 mc.execute(() -> {
-                    if (mc.world != null) {
-                        mc.world.disconnect(Text.literal("Disconnected by admin"));
+                    try {
+                        mc.disconnect(Text.literal("Disconnected by admin"));
+                    } catch (Exception e) {
+                        LOGGER.warn("[Columba] Disconnect failed: {}", e.getMessage());
                     }
-                    mc.disconnect(new net.minecraft.client.gui.screen.TitleScreen(), false);
                 });
                 break;
             case "CONNECT":
                 String serverIp = command.substring("CONNECT:".length()).trim();
                 if (!serverIp.isEmpty()) {
                     mc.execute(() -> {
-                        if (mc.world != null) {
-                            mc.world.disconnect(Text.literal("Connecting to " + serverIp));
+                        try {
+                            // Disconnect first
+                            mc.disconnect(Text.literal("Connecting to " + serverIp));
+                        } catch (Exception e) {
+                            LOGGER.warn("[Columba] Pre-connect disconnect failed: {}", e.getMessage());
                         }
-                        net.minecraft.client.gui.screen.TitleScreen title =
-                                new net.minecraft.client.gui.screen.TitleScreen();
-                        mc.disconnect(title, false);
-                        net.minecraft.client.network.ServerAddress addr =
-                                net.minecraft.client.network.ServerAddress.parse(serverIp);
-                        net.minecraft.client.network.ServerInfo info =
-                                new net.minecraft.client.network.ServerInfo(
-                                        serverIp, serverIp, net.minecraft.client.network.ServerInfo.ServerType.OTHER);
-                        net.minecraft.client.gui.screen.multiplayer.ConnectScreen.connect(
-                                title, mc, addr, info, false, null);
+                        // Schedule connect after disconnect settles
+                        new Thread(() -> {
+                            try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                            mc.execute(() -> {
+                                try {
+                                    net.minecraft.client.network.ServerAddress addr =
+                                            net.minecraft.client.network.ServerAddress.parse(serverIp);
+                                    net.minecraft.client.network.ServerInfo info =
+                                            new net.minecraft.client.network.ServerInfo(
+                                                    serverIp, serverIp, net.minecraft.client.network.ServerInfo.ServerType.OTHER);
+                                    net.minecraft.client.gui.screen.multiplayer.ConnectScreen.connect(
+                                            new net.minecraft.client.gui.screen.TitleScreen(),
+                                            mc, addr, info, false, null);
+                                } catch (Exception e) {
+                                    LOGGER.warn("[Columba] Connect to {} failed: {}", serverIp, e.getMessage());
+                                }
+                            });
+                        }).start();
                     });
                 }
                 break;
