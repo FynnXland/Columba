@@ -10,6 +10,8 @@ import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.client.input.KeyInput;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
@@ -48,6 +50,12 @@ public final class PlayerInfoScreen extends Screen {
     private boolean liveViewActive = false;
     private int liveViewTick = 0;
     private static final int LIVE_VIEW_INTERVAL_TICKS = 60; // request every 3s
+
+    // GPU texture for live view
+    private static final Identifier LIVE_TEX_ID = Identifier.of("columba", "pinfo_live");
+    private NativeImageBackedTexture liveTexture = null;
+    private int liveTexW = 0, liveTexH = 0;
+    private long liveTexUpdate = 0;
 
     // Button bounds
     private int specBtnX, specBtnY, specBtnW, specBtnH;
@@ -88,6 +96,11 @@ public final class PlayerInfoScreen extends Screen {
 
     @Override
     public void close() {
+        if (liveTexture != null && client != null) {
+            client.getTextureManager().destroyTexture(LIVE_TEX_ID);
+            liveTexture.close();
+            liveTexture = null;
+        }
         if (client != null) client.setScreen(parent);
     }
 
@@ -328,28 +341,61 @@ public final class PlayerInfoScreen extends Screen {
             int[] scPixels = AdminConfig.getScreenshotPixels();
             int scW2 = AdminConfig.getScreenshotW();
             int scH2 = AdminConfig.getScreenshotH();
+            long ts = AdminConfig.getScreenshotTimestamp();
             int previewY = contentBottom + 2;
             int maxPrevH = footerY - previewY - 4;
             if (scPixels != null && scW2 > 0 && scH2 > 0 && maxPrevH > 20) {
-                int scale = Math.max(1, Math.min(maxPrevH / scH2, (panelW - PAD * 2) / scW2));
-                int dw = scW2 * scale, dh = scH2 * scale;
-                int pvx = px + (panelW - dw) / 2;
-                ctx.fill(pvx - 1, previewY - 1, pvx + dw + 1, previewY + dh + 1, 0xFF333333);
-                for (int y2 = 0; y2 < scH2; y2++) {
-                    for (int x2 = 0; x2 < scW2; x2++) {
-                        int color = scPixels[y2 * scW2 + x2];
-                        ctx.fill(pvx + x2 * scale, previewY + y2 * scale,
-                                pvx + x2 * scale + scale, previewY + y2 * scale + scale, color);
+                // Update GPU texture
+                if (ts != liveTexUpdate || liveTexture == null || liveTexW != scW2 || liveTexH != scH2) {
+                    liveTexUpdate = ts;
+                    if (liveTexture == null || liveTexW != scW2 || liveTexH != scH2) {
+                        if (liveTexture != null) {
+                            client.getTextureManager().destroyTexture(LIVE_TEX_ID);
+                            liveTexture.close();
+                        }
+                        liveTexture = new NativeImageBackedTexture("pinfo_live", scW2, scH2, false);
+                        client.getTextureManager().registerTexture(LIVE_TEX_ID, liveTexture);
+                        liveTexW = scW2;
+                        liveTexH = scH2;
+                    }
+                    NativeImage img = liveTexture.getImage();
+                    if (img != null) {
+                        for (int y2 = 0; y2 < scH2; y2++) {
+                            for (int x2 = 0; x2 < scW2; x2++) {
+                                int argb = scPixels[y2 * scW2 + x2];
+                                int a = (argb >> 24) & 0xFF;
+                                int r = (argb >> 16) & 0xFF;
+                                int g = (argb >> 8) & 0xFF;
+                                int b = argb & 0xFF;
+                                img.setColor(x2, y2, (a << 24) | (b << 16) | (g << 8) | r);
+                            }
+                        }
+                        liveTexture.upload();
                     }
                 }
-                long age = (System.currentTimeMillis() - AdminConfig.getScreenshotTimestamp()) / 1000;
+
+                // Calculate display size maintaining aspect ratio
+                int dispH = maxPrevH;
+                int dispW = dispH * scW2 / scH2;
+                if (dispW > panelW - PAD * 2) {
+                    dispW = panelW - PAD * 2;
+                    dispH = dispW * scH2 / scW2;
+                }
+                int pvx = px + (panelW - dispW) / 2;
+
+                ctx.fill(pvx - 1, previewY - 1, pvx + dispW + 1, previewY + dispH + 1, 0xFF333333);
+                ctx.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
+                        LIVE_TEX_ID, pvx, previewY, 0, 0, dispW, dispH, dispW, dispH);
+
+                long age = (System.currentTimeMillis() - ts) / 1000;
                 ctx.drawTextWithShadow(textRenderer,
-                        Text.literal("\u00a78\uD83D\uDCF7 " + age + "s"),
-                        pvx, previewY + dh + 2, 0xFF555555);
+                        Text.literal("\u00a78\uD83D\uDCF7 " + age + "s  " + scW2 + "\u00d7" + scH2),
+                        pvx, previewY + dispH + 2, 0xFF555555);
             } else {
+                int previewY2 = contentBottom + 2;
                 ctx.drawCenteredTextWithShadow(textRenderer,
                         Text.literal("\u00a78\uD83D\uDCF7 Warte auf Bild..."),
-                        px + panelW / 2, previewY + 4, 0xFF555555);
+                        px + panelW / 2, previewY2 + 4, 0xFF555555);
             }
         }
 
