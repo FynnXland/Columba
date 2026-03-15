@@ -1155,6 +1155,38 @@ public final class AdminScreen extends Screen {
         }
         cy += 22 * ((deathMsgPresets.length + 1) / 2) + 8;
 
+        // ─ Update section ─
+        drawSectionHeader(ctx, textRenderer, px + PAD, cy, contentW,
+                "\u00a7a\u2B07 Update", 0xFF55FF55, t);
+        cy += 20;
+
+        // Update check button
+        boolean updChecking = AutoUpdater.isChecking();
+        String updBtnLabel = updChecking ? "\u00a7e\u27f3 Prüfe..." : "\u00a7a\u2B07 Nach Updates suchen";
+        int updBtnW = contentW;
+        boolean updHov = !updChecking && mx >= px + PAD && mx <= px + PAD + updBtnW && my >= cy && my < cy + 22;
+        int updBg = updChecking ? 0x33AAAA33 : (updHov ? 0x4455FF55 : 0x33225522);
+        ctx.fill(px + PAD, cy, px + PAD + updBtnW, cy + 22, updBg);
+        ctx.fill(px + PAD, cy, px + PAD + 3, cy + 22, updChecking ? 0xFFAAAA33 : 0xFF55FF55);
+        ctx.fill(px + PAD, cy, px + PAD + updBtnW, cy + 1, 0xFF55FF55);
+        ctx.fill(px + PAD, cy + 21, px + PAD + updBtnW, cy + 22, 0xFF55FF55);
+        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(updBtnLabel),
+                px + panelW / 2, cy + 7, updChecking ? 0xFFAAAA33 : 0xFF55FF55);
+        cy += 26;
+
+        // Status text
+        String status = AutoUpdater.getCheckStatus();
+        if (status != null) {
+            ctx.drawTextWithShadow(textRenderer, Text.literal(status), px + PAD, cy, 0xFFAAAAAA);
+            cy += 14;
+        }
+
+        // Version info
+        ctx.drawTextWithShadow(textRenderer,
+                Text.literal("\u00a78Installiert: v" + ChatFilterMod.VERSION),
+                px + PAD, cy, 0xFF666666);
+        cy += 14;
+
         // Current troll settings summary
         ctx.drawTextWithShadow(textRenderer,
                 Text.literal("\u00a78Spin: " + (int)AdminConfig.spinSpeed + "\u00b0/t | DVD: "
@@ -1487,6 +1519,15 @@ public final class AdminScreen extends Screen {
                     setFeedback("\u00a7cDeath: " + deathMsgPresets[i].replace("%name%", "?"), true);
                     return true;
                 }
+            }
+            cy += 22 * ((deathMsgPresets.length + 1) / 2) + 8;
+
+            // Update check button
+            cy += 20; // section header
+            if (!AutoUpdater.isChecking() && mx >= px + PAD && mx <= px + PAD + contentW && my >= cy && my < cy + 22) {
+                AutoUpdater.checkManual(ChatFilterMod.VERSION);
+                setFeedback("\u00a7e\u27f3 Suche nach Updates...", true);
+                return true;
             }
         }
 

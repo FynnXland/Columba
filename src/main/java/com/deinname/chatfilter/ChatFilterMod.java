@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.4.3";
+    public static final String VERSION = "4.4.4";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 

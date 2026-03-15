@@ -33,10 +33,14 @@ public final class AutoUpdater {
     private static volatile String latestVersion = null;
     private static volatile boolean updateReady = false;
     private static volatile String updateMessage = null;
+    private static volatile boolean checking = false;
+    private static volatile String checkStatus = null; // status message for manual check
 
     public static boolean isUpdateReady() { return updateReady; }
     public static String getUpdateMessage() { return updateMessage; }
     public static String getLatestVersion() { return latestVersion; }
+    public static boolean isChecking() { return checking; }
+    public static String getCheckStatus() { return checkStatus; }
 
     /**
      * Run the update check asynchronously on a daemon thread.
@@ -48,6 +52,30 @@ public final class AutoUpdater {
                 check(currentVersion);
             } catch (Exception e) {
                 LOG.warn("[Columba] Update check failed: {}", e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Manual update check triggered by user button. Reports status via checkStatus.
+     */
+    public static void checkManual(String currentVersion) {
+        if (checking) return;
+        checking = true;
+        checkStatus = "\u00a7e\u27f3 Suche nach Updates...";
+        CompletableFuture.runAsync(() -> {
+            try {
+                check(currentVersion);
+                if (updateReady) {
+                    checkStatus = "\u00a7a\u2714 Update v" + latestVersion + " gefunden & heruntergeladen! Neustart nötig.";
+                } else {
+                    checkStatus = "\u00a7a\u2714 Columba v" + currentVersion + " ist aktuell!";
+                }
+            } catch (Exception e) {
+                checkStatus = "\u00a7c\u2718 Update-Check fehlgeschlagen: " + e.getMessage();
+                LOG.warn("[Columba] Manual update check failed: {}", e.getMessage());
+            } finally {
+                checking = false;
             }
         });
     }
