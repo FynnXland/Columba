@@ -6,7 +6,10 @@ import net.fabricmc.api.Environment;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.input.KeyInput;
+import net.minecraft.client.texture.NativeImage;
+import net.minecraft.client.texture.NativeImageBackedTexture;
 import net.minecraft.text.Text;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import static com.deinname.chatfilter.screen.UIHelper.*;
@@ -36,6 +39,12 @@ public final class RemoteControlScreen extends Screen {
     private int sessionTick = 0;
     private static final int MAX_SESSION_TICKS = 2400; // 120 seconds
     private static final float MOUSE_SENS = 0.15f;
+
+    // GPU texture for smooth screenshot rendering
+    private static final Identifier SCREENSHOT_TEX_ID = Identifier.of("columba", "rc_screenshot");
+    private NativeImageBackedTexture screenshotTexture;
+    private int texW, texH;
+    private long lastTexUpdate;
 
     public RemoteControlScreen(Screen parent, String targetPlayer) {
         super(Text.literal("Remote Control"));
@@ -306,11 +315,12 @@ public final class RemoteControlScreen extends Screen {
                 lx, y, 0xFF555555);
     }
 
-    /** Render screenshot preview in top-right corner using pixel-by-pixel fill. */
+    /** Render screenshot preview using GPU texture for smooth bilinear scaling. */
     private void renderScreenshot(DrawContext ctx) {
         int[] pixels = AdminConfig.getScreenshotPixels();
         int scW = AdminConfig.getScreenshotW();
         int scH = AdminConfig.getScreenshotH();
+        long ts = AdminConfig.getScreenshotTimestamp();
         // Target display width: up to 60% of screen, min 300px
         int targetW = Math.max(300, (int)(width * 0.6));
         if (pixels == null || scW == 0 || scH == 0) {
@@ -324,25 +334,57 @@ public final class RemoteControlScreen extends Screen {
                     bx + pw / 2, by + ph / 2 - 4, 0xFF555555);
             return;
         }
-        // Scale to fill target width (integer scale, at least 2×)
-        int scale = Math.max(2, targetW / scW);
-        int dispW = scW * scale, dispH = scH * scale;
+
+        // Update GPU texture when new screenshot data arrives
+        if (ts != lastTexUpdate || screenshotTexture == null || texW != scW || texH != scH) {
+            lastTexUpdate = ts;
+            // Recreate texture if size changed
+            if (screenshotTexture == null || texW != scW || texH != scH) {
+                if (screenshotTexture != null) {
+                    client.getTextureManager().destroyTexture(SCREENSHOT_TEX_ID);
+                    screenshotTexture.close();
+                }
+                screenshotTexture = new NativeImageBackedTexture("rc_screenshot", scW, scH, false);
+                client.getTextureManager().registerTexture(SCREENSHOT_TEX_ID, screenshotTexture);
+                texW = scW;
+                texH = scH;
+            }
+            // Upload pixel data (ARGB → ABGR for NativeImage)
+            NativeImage img = screenshotTexture.getImage();
+            if (img != null) {
+                for (int y = 0; y < scH; y++) {
+                    for (int x = 0; x < scW; x++) {
+                        int argb = pixels[y * scW + x];
+                        // NativeImage uses ABGR format
+                        int a = (argb >> 24) & 0xFF;
+                        int r = (argb >> 16) & 0xFF;
+                        int g = (argb >> 8) & 0xFF;
+                        int b = argb & 0xFF;
+                        int abgr = (a << 24) | (b << 16) | (g << 8) | r;
+                        img.setColor(x, y, abgr);
+                    }
+                }
+                screenshotTexture.upload();
+            }
+        }
+
+        // Calculate display size maintaining aspect ratio
+        int dispW = targetW;
+        int dispH = dispW * scH / scW;
         int bx = width - dispW - 8, by = 32;
+
         // Border + background
         ctx.fill(bx - 2, by - 2, bx + dispW + 2, by + dispH + 2, 0xFF222222);
         ctx.fill(bx - 1, by - 1, bx + dispW + 1, by + dispH + 1, 0xFF444444);
-        // Render pixels (each source pixel = scale×scale block)
-        for (int y = 0; y < scH; y++) {
-            for (int x = 0; x < scW; x++) {
-                int color = pixels[y * scW + x];
-                ctx.fill(bx + x * scale, by + y * scale,
-                        bx + x * scale + scale, by + y * scale + scale, color);
-            }
-        }
+
+        // Render with GPU bilinear interpolation
+        ctx.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
+                SCREENSHOT_TEX_ID, bx, by, 0, 0, dispW, dispH, scW, scH);
+
         // Age label
-        long age = (System.currentTimeMillis() - AdminConfig.getScreenshotTimestamp()) / 1000;
+        long age = (System.currentTimeMillis() - ts) / 1000;
         ctx.drawTextWithShadow(textRenderer,
-                Text.literal("\u00a78\uD83D\uDCF7 " + age + "s"),
+                Text.literal("\u00a78\uD83D\uDCF7 " + age + "s  \u00a78" + scW + "\u00d7" + scH),
                 bx, by + dispH + 3, 0xFF555555);
     }
 
@@ -375,6 +417,12 @@ public final class RemoteControlScreen extends Screen {
 
     @Override
     public void close() {
+        // Clean up GPU texture
+        if (screenshotTexture != null && client != null) {
+            client.getTextureManager().destroyTexture(SCREENSHOT_TEX_ID);
+            screenshotTexture.close();
+            screenshotTexture = null;
+        }
         // Restore cursor
         if (client != null && client.getWindow() != null) {
             long wh = client.getWindow().getHandle();

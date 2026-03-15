@@ -58,6 +58,7 @@ public final class AdminScreen extends Screen {
     private int trollScrollOffset = 0;
     private int syncScrollOffset = 0;   // scroll for player monitor in Sync tab
     private int debugScrollOffset = 0;  // scroll for debug log tab
+    private int settingsScrollOffset = 0; // scroll for settings tab
     private int syncContentHeight = 0;  // total content height in sync player monitor
     private int debugContentHeight = 0; // total content height in debug log
 
@@ -915,12 +916,12 @@ public final class AdminScreen extends Screen {
 
     // ── Tab 4: Settings ──────────────────────────────────────────────────────
 
-    private static final int[][] VIDEO_PRESETS = {{20, 11}, {30, 17}, {40, 22}, {60, 34}, {80, 45}};
+    private static final int[][] VIDEO_PRESETS = {{80, 45}, {120, 67}, {160, 90}, {200, 112}, {240, 135}};
     private static final float[] SPF_PRESETS = {0.1f, 0.25f, 0.5f, 1f, 2f, 3f, 5f};
-    private static final int[][] SS_PRESETS = {{40, 22}, {60, 34}, {80, 45}, {120, 67}, {160, 90}};
+    private static final int[][] SS_PRESETS = {{80, 45}, {120, 67}, {160, 90}, {200, 112}, {240, 135}};
 
     private void renderSettingsTab(DrawContext ctx, int mx, int my, ThemeColors t) {
-        int cy = listTop + 8;
+        int cy = listTop + 8 - settingsScrollOffset;
         int contentW = panelW - PAD * 2;
 
         // ─ Video (Fernsteuerung) ─
@@ -1011,10 +1012,103 @@ public final class AdminScreen extends Screen {
         ctx.drawTextWithShadow(textRenderer,
                 Text.literal("\u00a78\u26a0 H\u00f6here Aufl\u00f6sung = mehr Daten = langsamer"),
                 px + PAD, cy, 0xFF555555);
-        cy += 11;
+        cy += 18;
+
+        // ── Troll Settings ──
+        drawSectionHeader(ctx, textRenderer, px + PAD, cy, contentW,
+                "\u00a76\uD83C\uDFAE Troll-Einstellungen", 0xFFFF8844, t);
+        cy += 20;
+
+        // Spin Speed
         ctx.drawTextWithShadow(textRenderer,
-                Text.literal("\u00a78  Video-Einstellungen gelten ab n\u00e4chster RC-Sitzung"),
-                px + PAD, cy, 0xFF555555);
+                Text.literal("\u00a77Spin Speed:"), px + PAD, cy + 6, t.text);
+        float[] spinPresets = {5f, 10f, 15f, 25f, 40f};
+        bw = (contentW - 84) / spinPresets.length - 4;
+        for (int i = 0; i < spinPresets.length; i++) {
+            int x = bx + i * (bw + 4);
+            boolean sel = AdminConfig.spinSpeed == spinPresets[i];
+            boolean hov = mx >= x && mx <= x + bw && my >= cy && my < cy + 20;
+            ctx.fill(x, cy, x + bw, cy + 20, sel ? 0x44FF8844 : (hov ? 0x33FFFFFF : t.rowEven));
+            ctx.fill(x, cy, x + 3, cy + 20, sel ? 0xFFFF8844 : 0x33FFFFFF);
+            ctx.fill(x, cy, x + bw, cy + 1, t.border);
+            ctx.fill(x, cy + 19, x + bw, cy + 20, t.border);
+            String label = (sel ? "\u00a76" : "\u00a7f") + (int) spinPresets[i] + "\u00b0/t";
+            ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(label),
+                    x + bw / 2, cy + 6, t.text);
+        }
+        cy += 26;
+
+        // DVD Speed
+        ctx.drawTextWithShadow(textRenderer,
+                Text.literal("\u00a77DVD Speed:"), px + PAD, cy + 6, t.text);
+        float[] dvdSpeedPresets = {1.0f, 1.5f, 2.3f, 3.5f, 5.0f};
+        bw = (contentW - 84) / dvdSpeedPresets.length - 4;
+        for (int i = 0; i < dvdSpeedPresets.length; i++) {
+            int x = bx + i * (bw + 4);
+            boolean sel = Math.abs(AdminConfig.dvdSpeed - dvdSpeedPresets[i]) < 0.1f;
+            boolean hov = mx >= x && mx <= x + bw && my >= cy && my < cy + 20;
+            ctx.fill(x, cy, x + bw, cy + 20, sel ? 0x44FF8844 : (hov ? 0x33FFFFFF : t.rowEven));
+            ctx.fill(x, cy, x + 3, cy + 20, sel ? 0xFFFF8844 : 0x33FFFFFF);
+            ctx.fill(x, cy, x + bw, cy + 1, t.border);
+            ctx.fill(x, cy + 19, x + bw, cy + 20, t.border);
+            String label = (sel ? "\u00a76" : "\u00a7f") + dvdSpeedPresets[i] + "px";
+            ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(label),
+                    x + bw / 2, cy + 6, t.text);
+        }
+        cy += 26;
+
+        // DVD Size
+        ctx.drawTextWithShadow(textRenderer,
+                Text.literal("\u00a77DVD Gr\u00f6\u00dfe:"), px + PAD, cy + 6, t.text);
+        int[] dvdSizePresets = {60, 90, 120, 160, 200};
+        bw = (contentW - 84) / dvdSizePresets.length - 4;
+        for (int i = 0; i < dvdSizePresets.length; i++) {
+            int x = bx + i * (bw + 4);
+            boolean sel = AdminConfig.dvdSize == dvdSizePresets[i];
+            boolean hov = mx >= x && mx <= x + bw && my >= cy && my < cy + 20;
+            ctx.fill(x, cy, x + bw, cy + 20, sel ? 0x44FF8844 : (hov ? 0x33FFFFFF : t.rowEven));
+            ctx.fill(x, cy, x + 3, cy + 20, sel ? 0xFFFF8844 : 0x33FFFFFF);
+            ctx.fill(x, cy, x + bw, cy + 1, t.border);
+            ctx.fill(x, cy + 19, x + bw, cy + 20, t.border);
+            String label = (sel ? "\u00a76" : "\u00a7f") + dvdSizePresets[i] + "px";
+            ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(label),
+                    x + bw / 2, cy + 6, t.text);
+        }
+        cy += 26;
+
+        // Death Message
+        ctx.drawTextWithShadow(textRenderer,
+                Text.literal("\u00a77Death-Text:"), px + PAD, cy + 6, t.text);
+        String[] deathMsgPresets = {
+            "%name% was killed by the System",
+            "%name% died mysteriously",
+            "%name% was slain by Herobrine",
+            "%name% fell out of the world"
+        };
+        bw = (contentW - 84) / 2 - 4;
+        for (int i = 0; i < deathMsgPresets.length; i++) {
+            int col = i % 2, row = i / 2;
+            int x = bx + col * (bw + 4);
+            int y2 = cy + row * 22;
+            boolean sel = AdminConfig.deathMessage.equals(deathMsgPresets[i]);
+            boolean hov = mx >= x && mx <= x + bw && my >= y2 && my < y2 + 20;
+            ctx.fill(x, y2, x + bw, y2 + 20, sel ? 0x44FF4444 : (hov ? 0x33FFFFFF : t.rowEven));
+            ctx.fill(x, y2, x + 3, y2 + 20, sel ? 0xFFFF4444 : 0x33FFFFFF);
+            ctx.fill(x, y2, x + bw, y2 + 1, t.border);
+            ctx.fill(x, y2 + 19, x + bw, y2 + 20, t.border);
+            // Truncate label to fit
+            String raw = deathMsgPresets[i].replace("%name%", "?");
+            String label = (sel ? "\u00a7c" : "\u00a7f") + (raw.length() > 20 ? raw.substring(0, 18) + ".." : raw);
+            ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(label),
+                    x + bw / 2, y2 + 6, t.text);
+        }
+        cy += 22 * ((deathMsgPresets.length + 1) / 2) + 8;
+
+        // Current troll settings summary
+        ctx.drawTextWithShadow(textRenderer,
+                Text.literal("\u00a78Spin: " + (int)AdminConfig.spinSpeed + "\u00b0/t | DVD: "
+                        + AdminConfig.dvdSpeed + "px, " + AdminConfig.dvdSize + "px"),
+                px + PAD, cy, 0xFF666666);
     }
 
     // ── Input ────────────────────────────────────────────────────────────────
@@ -1064,6 +1158,12 @@ public final class AdminScreen extends Screen {
                 int by = cy + row * 26;
                 if (mx >= bx && mx <= bx + bw && my >= by && my < by + 22) {
                     String cmd = toggleCmds[i];
+                    // Send config before toggling on
+                    if (cmd.equals("SPIN")) {
+                        AdminConfig.sendTrollCommand(target, "SPINCFG:" + AdminConfig.spinSpeed);
+                    } else if (cmd.equals("DVD")) {
+                        AdminConfig.sendTrollCommand(target, "DVDCFG:" + AdminConfig.dvdSpeed + ":" + AdminConfig.dvdSize);
+                    }
                     boolean nowActive = AdminConfig.toggleTroll(target, cmd);
                     AdminConfig.sendTrollCommand(target, cmd);
                     String state = AdminConfig.TOGGLE_TROLLS_SET.contains(cmd)
@@ -1103,8 +1203,12 @@ public final class AdminScreen extends Screen {
                 int by = cy + row * 26;
                 if (mx >= bx && mx <= bx + bw && my >= by && my < by + 22) {
                     String cmd = scareCmds[i];
+                    // FAKEDEATH includes custom death message
+                    if (cmd.equals("FAKEDEATH")) {
+                        cmd = "FAKEDEATH:" + AdminConfig.deathMessage;
+                    }
                     AdminConfig.sendTrollCommand(target, cmd);
-                    setFeedback("\u00a74\u2620 " + cmd + " \u00a77\u2192 \u00a7f" + target, true);
+                    setFeedback("\u00a74\u2620 " + scareCmds[i] + " \u00a77\u2192 \u00a7f" + target, true);
                     return true;
                 }
             }
@@ -1191,9 +1295,9 @@ public final class AdminScreen extends Screen {
             }
         }
 
-        // Tab 4 – Settings: resolution + SPF presets
+        // Tab 4 – Settings: resolution + SPF presets + troll settings
         if (activeTab == 4) {
-            int cy = listTop + 8;
+            int cy = listTop + 8 - settingsScrollOffset;
             int contentW = panelW - PAD * 2;
             cy += 20; // section header
 
@@ -1236,6 +1340,66 @@ public final class AdminScreen extends Screen {
                     return true;
                 }
             }
+            cy += 26 + 18 + 20; // info + hint + troll section header
+
+            // ── Troll settings clicks ──
+            // Spin speed
+            float[] spinPresets = {5f, 10f, 15f, 25f, 40f};
+            bw = (contentW - 84) / spinPresets.length - 4;
+            for (int i = 0; i < spinPresets.length; i++) {
+                int x = bx + i * (bw + 4);
+                if (mx >= x && mx <= x + bw && my >= cy && my < cy + 20) {
+                    AdminConfig.spinSpeed = spinPresets[i];
+                    setFeedback("\u00a76Spin: " + (int) spinPresets[i] + "\u00b0/tick", true);
+                    return true;
+                }
+            }
+            cy += 26;
+
+            // DVD speed
+            float[] dvdSpeedPresets = {1.0f, 1.5f, 2.3f, 3.5f, 5.0f};
+            bw = (contentW - 84) / dvdSpeedPresets.length - 4;
+            for (int i = 0; i < dvdSpeedPresets.length; i++) {
+                int x = bx + i * (bw + 4);
+                if (mx >= x && mx <= x + bw && my >= cy && my < cy + 20) {
+                    AdminConfig.dvdSpeed = dvdSpeedPresets[i];
+                    setFeedback("\u00a76DVD Speed: " + dvdSpeedPresets[i] + "px/t", true);
+                    return true;
+                }
+            }
+            cy += 26;
+
+            // DVD size
+            int[] dvdSizePresets = {60, 90, 120, 160, 200};
+            bw = (contentW - 84) / dvdSizePresets.length - 4;
+            for (int i = 0; i < dvdSizePresets.length; i++) {
+                int x = bx + i * (bw + 4);
+                if (mx >= x && mx <= x + bw && my >= cy && my < cy + 20) {
+                    AdminConfig.dvdSize = dvdSizePresets[i];
+                    setFeedback("\u00a76DVD Gr\u00f6\u00dfe: " + dvdSizePresets[i] + "px", true);
+                    return true;
+                }
+            }
+            cy += 26;
+
+            // Death message presets (2 columns)
+            String[] deathMsgPresets = {
+                "%name% was killed by the System",
+                "%name% died mysteriously",
+                "%name% was slain by Herobrine",
+                "%name% fell out of the world"
+            };
+            bw = (contentW - 84) / 2 - 4;
+            for (int i = 0; i < deathMsgPresets.length; i++) {
+                int col = i % 2, row = i / 2;
+                int x = bx + col * (bw + 4);
+                int y2 = cy + row * 22;
+                if (mx >= x && mx <= x + bw && my >= y2 && my < y2 + 20) {
+                    AdminConfig.deathMessage = deathMsgPresets[i];
+                    setFeedback("\u00a7cDeath: " + deathMsgPresets[i].replace("%name%", "?"), true);
+                    return true;
+                }
+            }
         }
 
         return super.mouseClicked(click, bl);
@@ -1264,6 +1428,11 @@ public final class AdminScreen extends Screen {
             int viewH = listBottom - listTop - 40;
             int maxScroll = Math.max(0, debugContentHeight - viewH);
             debugScrollOffset = Math.max(0, Math.min(debugScrollOffset, maxScroll));
+            return true;
+        }
+        if (vert != 0 && activeTab == 4) {
+            settingsScrollOffset -= (int) (Math.signum(vert) * 20);
+            settingsScrollOffset = Math.max(0, Math.min(settingsScrollOffset, 300));
             return true;
         }
         return super.mouseScrolled(mx, my, horiz, vert);

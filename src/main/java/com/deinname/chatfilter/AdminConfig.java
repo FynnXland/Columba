@@ -271,6 +271,12 @@ public final class AdminConfig {
     public static volatile float videoSpf = 3f; // seconds per frame during RC
     public static volatile int ssW = 80, ssH = 45; // on-demand screenshot resolution
 
+    // ── Troll settings (admin-configurable) ──
+    public static volatile float spinSpeed = 15f;          // degrees per tick
+    public static volatile float dvdSpeed = 2.3f;          // pixels per tick
+    public static volatile int dvdSize = 120;              // viewport width in px (height = w*3/4)
+    public static volatile String deathMessage = "%name% was killed by the System";
+
     /** Tracks which troll effects are active per player (admin-side only). */
     private static final Map<String, Set<String>> activeTrolls = new ConcurrentHashMap<>();
     /** Dedup: recently processed message hashes to prevent duplicates. */
