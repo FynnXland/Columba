@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "columba",
+  "version": "${version}",
+  "name": "Columba",
+  "description": "Client-side admin toolkit with chat filtering, remote control, player monitoring and live sync.",
+  "authors": ["Fynn"],
+  "license": "MIT",
+  "icon": "icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client":  ["com.deinname.chatfilter.ChatFilterMod"],
+    "modmenu": ["com.deinname.chatfilter.ChatFilterModMenuIntegration"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "fabric-api":   "*",
+    "minecraft":    ">=1.21.10"
+  },
+  "suggests": {
+    "modmenu": "*"
+  },
+  "accessWidener": "chatfilter.accesswidener"
+}
