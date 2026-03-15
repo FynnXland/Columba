@@ -66,6 +66,7 @@ public final class AdminScreen extends Screen {
     private TextFieldWidget addField;
     private TextFieldWidget chatField;  // fake chat input in troll tab
     private TextFieldWidget connectField; // server IP input in troll tab
+    private TextFieldWidget deathMsgField; // custom death message input in settings tab
     private ButtonWidget sendBtn;       // send button for fake chat
     private String feedback = null;
     private boolean feedbackOk = true;
@@ -104,9 +105,9 @@ public final class AdminScreen extends Screen {
         recalc();
         clearChildren();
 
-        // Add player field (shown on all tabs EXCEPT Control tab)
+        // Add player field (shown on tabs EXCEPT Control and Settings)
         int inputY = py + panelH - FOOTER_H + 10;
-        if (activeTab != 1) {
+        if (activeTab != 1 && activeTab != 4) {
             addField = new TextFieldWidget(textRenderer,
                     px + PAD, inputY, panelW - PAD * 2 - 110, 20, Text.literal(""));
             addField.setMaxLength(32);
@@ -117,6 +118,25 @@ public final class AdminScreen extends Screen {
                     .dimensions(px + panelW - PAD - 102, inputY, 102, 20).build());
         } else {
             addField = null;
+        }
+
+        // Death message input (shown on Settings tab in footer area)
+        if (activeTab == 4) {
+            deathMsgField = new TextFieldWidget(textRenderer,
+                    px + PAD, inputY, panelW - PAD * 2 - 110, 20, Text.literal(""));
+            deathMsgField.setMaxLength(128);
+            deathMsgField.setText(AdminConfig.deathMessage);
+            deathMsgField.setPlaceholder(Text.literal("\u00a78Death-Text (%name% = Spielername)"));
+            addDrawableChild(deathMsgField);
+
+            addDrawableChild(ButtonWidget.builder(Text.literal("\u00a7c\u2714 Setzen"), b -> {
+                if (deathMsgField != null && !deathMsgField.getText().trim().isEmpty()) {
+                    AdminConfig.deathMessage = deathMsgField.getText().trim();
+                    setFeedback("\u00a7cDeath-Text: " + AdminConfig.deathMessage.replace("%name%", "?"), true);
+                }
+            }).dimensions(px + panelW - PAD - 102, inputY, 102, 20).build());
+        } else {
+            deathMsgField = null;
         }
 
         // Tab buttons
@@ -1460,7 +1480,7 @@ public final class AdminScreen extends Screen {
                     return true;
                 }
             }
-            cy += 26 + 18 + 20; // info + hint + troll section header
+            cy += 26 + 22 + 18 + 20; // SS info (+26) + SS info text (+22) + hint (+18) + troll section header (+20)
 
             // ── Troll settings clicks ──
             // Spin speed
