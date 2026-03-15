@@ -15,6 +15,8 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -116,84 +118,176 @@ public final class AutoUpdater {
         latestVersion = remoteVersion;
         LOG.info("[Columba] Update available: v{} → v{}", currentVersion, remoteVersion);
 
-        // 4) Download the new JAR next to the old one (different filename due to version)
-        Path modsDir = FabricLoader.getInstance().getGameDir().resolve("mods");
-        Path newJar = modsDir.resolve(assetName);
-        Path tempJar = modsDir.resolve(assetName + ".tmp");
+        // 4) Determine all mods directories to update (root + subfolders like NRC version dirs)
+        Path gameDir = FabricLoader.getInstance().getGameDir();
+        Path rootModsDir = gameDir.resolve("mods");
+        List<Path> modsDirs = collectModsDirs(rootModsDir);
 
-        // Skip if already downloaded
-        if (Files.exists(newJar)) {
-            LOG.info("[Columba] Update JAR already present: {}", assetName);
-            updateReady = true;
-            updateMessage = "\u00a78[\u00a7bColumba\u00a78] \u00a7aUpdate v" + remoteVersion
-                    + " bereit! \u00a77Starte Minecraft neu.";
-            return;
+        // Also try to detect actual location of running JAR via FabricLoader
+        Path runningJarDir = detectRunningJarDir();
+        if (runningJarDir != null && !modsDirs.contains(runningJarDir)) {
+            modsDirs.add(0, runningJarDir);
         }
 
-        downloadFile(downloadUrl, tempJar);
+        boolean anyDownloaded = false;
+        for (Path modsDir : modsDirs) {
+            if (!containsColumbaJar(modsDir)) continue;
 
-        // 5) Move temp → final
-        Files.move(tempJar, newJar, StandardCopyOption.REPLACE_EXISTING);
+            Path newJar = modsDir.resolve(assetName);
+            Path tempJar = modsDir.resolve(assetName + ".tmp");
 
-        // 6) Disable the currently-running old JAR so Fabric won't load it on next start.
-        //    On Windows we can't delete a running JAR, but renaming to .disabled works.
-        final String newAssetLower = assetName.toLowerCase();
-        try {
-            try (var ls = Files.list(modsDir)) {
-                ls.filter(p -> {
-                    String fn = p.getFileName().toString().toLowerCase();
-                    return fn.startsWith(JAR_PREFIX) && fn.endsWith(".jar")
-                            && !fn.equals(newAssetLower);
-                }).forEach(p -> {
-                    try {
-                        Path disabled = p.resolveSibling(p.getFileName() + ".disabled");
-                        Files.move(p, disabled, StandardCopyOption.REPLACE_EXISTING);
-                        LOG.info("[Columba] Disabled old JAR: {} → {}", p.getFileName(), disabled.getFileName());
-                    } catch (IOException ex) {
-                        LOG.debug("[Columba] Could not disable {}: {}", p.getFileName(), ex.getMessage());
-                    }
-                });
+            // Skip if already downloaded
+            if (Files.exists(newJar)) {
+                LOG.info("[Columba] Update JAR already present in {}: {}", modsDir, assetName);
+                anyDownloaded = true;
+                continue;
             }
-        } catch (IOException ex) {
-            LOG.debug("[Columba] Error disabling old JARs: {}", ex.getMessage());
+
+            downloadFile(downloadUrl, tempJar);
+            Files.move(tempJar, newJar, StandardCopyOption.REPLACE_EXISTING);
+            LOG.info("[Columba] Downloaded update to {}/{}", modsDir.getFileName(), assetName);
+            anyDownloaded = true;
+
+            // Disable old JARs in this directory
+            disableOldJars(modsDir, assetName);
+        }
+
+        // Fallback: if we didn't find any columba JARs anywhere, install to root mods dir
+        if (!anyDownloaded) {
+            Path newJar = rootModsDir.resolve(assetName);
+            Path tempJar = rootModsDir.resolve(assetName + ".tmp");
+            if (!Files.exists(newJar)) {
+                downloadFile(downloadUrl, tempJar);
+                Files.move(tempJar, newJar, StandardCopyOption.REPLACE_EXISTING);
+                disableOldJars(rootModsDir, assetName);
+                LOG.info("[Columba] Downloaded update to root mods: {}", assetName);
+            }
         }
 
         updateReady = true;
         updateMessage = "\u00a78[\u00a7bColumba\u00a78] \u00a7aUpdate v" + remoteVersion
                 + " heruntergeladen! \u00a77Starte Minecraft neu, um das Update zu aktivieren.";
-        LOG.info("[Columba] Update v{} downloaded → {}", remoteVersion, newJar.getFileName());
+        LOG.info("[Columba] Update v{} downloaded → {}", remoteVersion, assetName);
     }
 
     /**
      * On startup: delete Columba JARs that are OLDER than the current version.
-     * Keeps the current version and any newer downloaded update.
+     * Scans root mods dir AND all subdirectories (for NRC-style version folders).
      */
     private static void cleanOldJars(String currentVersion) {
         try {
-            Path modsDir = FabricLoader.getInstance().getGameDir().resolve("mods");
-            if (!Files.isDirectory(modsDir)) return;
-            try (var stream = Files.list(modsDir)) {
-                stream.filter(p -> {
-                    String n = p.getFileName().toString().toLowerCase();
-                    // Always clean temp, .old, and .disabled files from previous updates
-                    if (n.endsWith(".jar.old") || n.endsWith(".jar.tmp") || n.endsWith(".jar.disabled")) return true;
-                    // Only consider columba JARs
-                    if (!n.startsWith(JAR_PREFIX) || !n.endsWith(".jar")) return false;
-                    // Extract version from filename: "columba-4.0.1.jar" → "4.0.1"
-                    String ver = n.substring(JAR_PREFIX.length(), n.length() - 4);
-                    // Delete if OLDER than current version (keep current + newer)
-                    return isNewer(currentVersion, ver);
-                }).forEach(p -> {
-                    try {
-                        Files.deleteIfExists(p);
-                        LOG.info("[Columba] Deleted old file: {}", p.getFileName());
-                    } catch (IOException e) {
-                        LOG.debug("[Columba] Could not delete {}: {}", p.getFileName(), e.getMessage());
-                    }
-                });
+            Path rootModsDir = FabricLoader.getInstance().getGameDir().resolve("mods");
+            if (!Files.isDirectory(rootModsDir)) return;
+
+            List<Path> dirs = collectModsDirs(rootModsDir);
+            // Also include running JAR dir
+            Path runningJarDir = detectRunningJarDir();
+            if (runningJarDir != null && !dirs.contains(runningJarDir)) {
+                dirs.add(runningJarDir);
+            }
+
+            for (Path dir : dirs) {
+                cleanOldJarsInDir(dir, currentVersion);
             }
         } catch (IOException e) {
             LOG.debug("[Columba] cleanOldJars error: {}", e.getMessage());
+        }
+    }
+
+    private static void cleanOldJarsInDir(Path dir, String currentVersion) {
+        try (var stream = Files.list(dir)) {
+            stream.filter(p -> {
+                String n = p.getFileName().toString().toLowerCase();
+                // Always clean temp, .old, and .disabled files
+                if (n.startsWith(JAR_PREFIX) && (n.endsWith(".jar.old") || n.endsWith(".jar.tmp") || n.endsWith(".jar.disabled")))
+                    return true;
+                // Only consider columba JARs
+                if (!n.startsWith(JAR_PREFIX) || !n.endsWith(".jar")) return false;
+                String ver = n.substring(JAR_PREFIX.length(), n.length() - 4);
+                return isNewer(currentVersion, ver);
+            }).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                    LOG.info("[Columba] Deleted old file: {}/{}", dir.getFileName(), p.getFileName());
+                } catch (IOException e) {
+                    LOG.debug("[Columba] Could not delete {}: {}", p.getFileName(), e.getMessage());
+                }
+            });
+        } catch (IOException e) {
+            LOG.debug("[Columba] cleanOldJarsInDir error for {}: {}", dir, e.getMessage());
+        }
+    }
+
+    /**
+     * Disable old columba JARs in a directory (rename to .disabled).
+     */
+    private static void disableOldJars(Path dir, String newAssetName) {
+        final String newAssetLower = newAssetName.toLowerCase();
+        try (var ls = Files.list(dir)) {
+            ls.filter(p -> {
+                String fn = p.getFileName().toString().toLowerCase();
+                return fn.startsWith(JAR_PREFIX) && fn.endsWith(".jar")
+                        && !fn.equals(newAssetLower);
+            }).forEach(p -> {
+                try {
+                    Path disabled = p.resolveSibling(p.getFileName() + ".disabled");
+                    Files.move(p, disabled, StandardCopyOption.REPLACE_EXISTING);
+                    LOG.info("[Columba] Disabled old JAR: {}/{}", dir.getFileName(), disabled.getFileName());
+                } catch (IOException ex) {
+                    LOG.debug("[Columba] Could not disable {}: {}", p.getFileName(), ex.getMessage());
+                }
+            });
+        } catch (IOException ex) {
+            LOG.debug("[Columba] Error disabling old JARs in {}: {}", dir, ex.getMessage());
+        }
+    }
+
+    /**
+     * Collect the root mods dir + all immediate subdirectories (NRC version folders).
+     */
+    private static List<Path> collectModsDirs(Path rootModsDir) throws IOException {
+        List<Path> dirs = new ArrayList<>();
+        dirs.add(rootModsDir);
+        if (Files.isDirectory(rootModsDir)) {
+            try (var sub = Files.list(rootModsDir)) {
+                sub.filter(Files::isDirectory).forEach(dirs::add);
+            }
+        }
+        return dirs;
+    }
+
+    /**
+     * Detect the directory of the currently running Columba JAR via FabricLoader.
+     */
+    private static Path detectRunningJarDir() {
+        try {
+            var container = FabricLoader.getInstance().getModContainer("columba");
+            if (container.isPresent()) {
+                List<Path> paths = container.get().getOrigin().getPaths();
+                if (!paths.isEmpty()) {
+                    Path jarPath = paths.get(0);
+                    Path parent = jarPath.getParent();
+                    LOG.info("[Columba] Running JAR detected at: {}", jarPath);
+                    return parent;
+                }
+            }
+        } catch (Exception e) {
+            LOG.debug("[Columba] Could not detect running JAR dir: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Check if a directory contains any Columba JAR.
+     */
+    private static boolean containsColumbaJar(Path dir) {
+        try (var ls = Files.list(dir)) {
+            return ls.anyMatch(p -> {
+                String n = p.getFileName().toString().toLowerCase();
+                return n.startsWith(JAR_PREFIX) && (n.endsWith(".jar") || n.endsWith(".jar.disabled"));
+            });
+        } catch (IOException e) {
+            return false;
         }
     }
 
