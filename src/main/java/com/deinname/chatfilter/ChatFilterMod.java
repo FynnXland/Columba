@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.1.0";
+    public static final String VERSION = "4.1.1";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -89,6 +89,8 @@ public final class ChatFilterMod implements ClientModInitializer {
     // Periodic status push counter + dynamic interval (default 1200 ticks = 60s)
     private static int statusTickCounter = 0;
     private static volatile int statusPushInterval = 200;
+    // Auto-updater notification state
+    private static boolean updateNotified = false;
     // Screenshot capture state
     private static volatile boolean screenshotMode = false;
     private static volatile boolean screenshotOneShot = false; // single capture request
@@ -225,6 +227,12 @@ public final class ChatFilterMod implements ClientModInitializer {
             }
             // Admin sync (non-admin clients poll for updates)
             AdminConfig.syncIfNeeded();
+
+            // ── Auto-update notification (tick-based, fires once) ──
+            if (!updateNotified && AutoUpdater.isUpdateReady() && client.player != null) {
+                updateNotified = true;
+                sendLocal(AutoUpdater.getUpdateMessage());
+            }
 
             // Periodic status push to admin (dynamic interval, default 15s)
             if (client.player != null && RelaySync.isEnabled() && ++statusTickCounter >= statusPushInterval) {

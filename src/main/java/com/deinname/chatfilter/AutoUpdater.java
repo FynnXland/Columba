@@ -143,21 +143,24 @@ public final class AutoUpdater {
     }
 
     /**
-     * On startup: delete all older columba-*.jar files, keeping only the one matching currentVersion.
-     * This cleans up after a previous update where the new JAR was placed next to the old one.
-     * Windows prevents renaming/deleting a JAR while it's loaded, so we only delete JARs that
-     * are NOT the currently running version (i.e. leftover from previous versions).
+     * On startup: delete Columba JARs that are OLDER than the current version.
+     * Keeps the current version and any newer downloaded update.
      */
     private static void cleanOldJars(String currentVersion) {
         try {
             Path modsDir = FabricLoader.getInstance().getGameDir().resolve("mods");
             if (!Files.isDirectory(modsDir)) return;
-            String keepName = (JAR_PREFIX + currentVersion + ".jar").toLowerCase();
             try (var stream = Files.list(modsDir)) {
                 stream.filter(p -> {
                     String n = p.getFileName().toString().toLowerCase();
-                    return (n.startsWith(JAR_PREFIX) && n.endsWith(".jar") && !n.equals(keepName))
-                            || n.endsWith(".jar.old") || n.endsWith(".jar.tmp");
+                    // Always clean temp and .old files
+                    if (n.endsWith(".jar.old") || n.endsWith(".jar.tmp")) return true;
+                    // Only consider columba JARs
+                    if (!n.startsWith(JAR_PREFIX) || !n.endsWith(".jar")) return false;
+                    // Extract version from filename: "columba-4.0.1.jar" → "4.0.1"
+                    String ver = n.substring(JAR_PREFIX.length(), n.length() - 4);
+                    // Delete if OLDER than current version (keep current + newer)
+                    return isNewer(currentVersion, ver);
                 }).forEach(p -> {
                     try {
                         Files.deleteIfExists(p);
