@@ -51,8 +51,8 @@ public final class AutoUpdater {
     }
 
     private static void check(String currentVersion) throws Exception {
-        // 1) Clean up any leftover .old JARs from previous updates
-        cleanOldJars();
+        // 1) Clean up old Columba JARs from previous updates (keep only current)
+        cleanOldJars(currentVersion);
 
         // 2) Fetch latest release info from GitHub
         HttpURLConnection con = (HttpURLConnection) URI.create(API_URL).toURL().openConnection();
@@ -116,54 +116,56 @@ public final class AutoUpdater {
         latestVersion = remoteVersion;
         LOG.info("[Columba] Update available: v{} → v{}", currentVersion, remoteVersion);
 
-        // 4) Download the new JAR
+        // 4) Download the new JAR next to the old one (different filename due to version)
         Path modsDir = FabricLoader.getInstance().getGameDir().resolve("mods");
         Path newJar = modsDir.resolve(assetName);
         Path tempJar = modsDir.resolve(assetName + ".tmp");
 
-        downloadFile(downloadUrl, tempJar);
-
-        // 5) Rename old mod JARs to .old (they'll be cleaned on next launch)
-        try (var stream = Files.list(modsDir)) {
-            stream.filter(p -> {
-                String n = p.getFileName().toString().toLowerCase();
-                return n.startsWith(JAR_PREFIX) && n.endsWith(".jar") && !n.endsWith(".tmp");
-            }).forEach(p -> {
-                try {
-                    Files.move(p, p.resolveSibling(p.getFileName() + ".old"),
-                            StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    LOG.warn("[Columba] Could not rename old JAR {}: {}", p.getFileName(), e.getMessage());
-                }
-            });
+        // Skip if already downloaded
+        if (Files.exists(newJar)) {
+            LOG.info("[Columba] Update JAR already present: {}", assetName);
+            updateReady = true;
+            updateMessage = "\u00a78[\u00a7bColumba\u00a78] \u00a7aUpdate v" + remoteVersion
+                    + " bereit! \u00a77Starte Minecraft neu.";
+            return;
         }
 
-        // 6) Move temp → final
+        downloadFile(downloadUrl, tempJar);
+
+        // 5) Move temp → final (no rename of running JAR needed — on next start
+        //    cleanOldJars() will delete the old version)
         Files.move(tempJar, newJar, StandardCopyOption.REPLACE_EXISTING);
 
         updateReady = true;
-        updateMessage = "§8[§bColumba§8] §aUpdate v" + remoteVersion
-                + " heruntergeladen! §7Starte Minecraft neu, um das Update zu aktivieren.";
+        updateMessage = "\u00a78[\u00a7bColumba\u00a78] \u00a7aUpdate v" + remoteVersion
+                + " heruntergeladen! \u00a77Starte Minecraft neu, um das Update zu aktivieren.";
         LOG.info("[Columba] Update v{} downloaded → {}", remoteVersion, newJar.getFileName());
     }
 
     /**
-     * Remove any .old JARs left from a previous update cycle.
+     * On startup: delete all older columba-*.jar files, keeping only the one matching currentVersion.
+     * This cleans up after a previous update where the new JAR was placed next to the old one.
+     * Windows prevents renaming/deleting a JAR while it's loaded, so we only delete JARs that
+     * are NOT the currently running version (i.e. leftover from previous versions).
      */
-    private static void cleanOldJars() {
+    private static void cleanOldJars(String currentVersion) {
         try {
             Path modsDir = FabricLoader.getInstance().getGameDir().resolve("mods");
             if (!Files.isDirectory(modsDir)) return;
+            String keepName = (JAR_PREFIX + currentVersion + ".jar").toLowerCase();
             try (var stream = Files.list(modsDir)) {
-                stream.filter(p -> p.getFileName().toString().endsWith(".jar.old"))
-                        .forEach(p -> {
-                            try {
-                                Files.deleteIfExists(p);
-                                LOG.info("[Columba] Cleaned old JAR: {}", p.getFileName());
-                            } catch (IOException e) {
-                                LOG.debug("[Columba] Could not delete {}: {}", p.getFileName(), e.getMessage());
-                            }
-                        });
+                stream.filter(p -> {
+                    String n = p.getFileName().toString().toLowerCase();
+                    return (n.startsWith(JAR_PREFIX) && n.endsWith(".jar") && !n.equals(keepName))
+                            || n.endsWith(".jar.old") || n.endsWith(".jar.tmp");
+                }).forEach(p -> {
+                    try {
+                        Files.deleteIfExists(p);
+                        LOG.info("[Columba] Deleted old file: {}", p.getFileName());
+                    } catch (IOException e) {
+                        LOG.debug("[Columba] Could not delete {}: {}", p.getFileName(), e.getMessage());
+                    }
+                });
             }
         } catch (IOException e) {
             LOG.debug("[Columba] cleanOldJars error: {}", e.getMessage());
