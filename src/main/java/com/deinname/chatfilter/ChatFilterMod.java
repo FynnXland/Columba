@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.3.1";
+    public static final String VERSION = "4.3.2";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -1237,33 +1237,88 @@ public final class ChatFilterMod implements ClientModInitializer {
                         mc.setScreen(new net.minecraft.client.gui.screen.Screen(Text.literal("")) {
                             @Override
                             public void render(net.minecraft.client.gui.DrawContext ctx, int mx, int my, float delta) {
-                                ctx.fill(0, 0, width, height, 0xBB000000);
+                                // Red gradient overlay like real death screen
+                                ctx.fillGradient(0, 0, width, height, 0x60500000, 0xA0803030);
+
                                 String pName = mc.player != null ? mc.player.getName().getString() : "Player";
                                 String msg = fakeDeathMessage.replace("%name%", pName);
+
+                                // Large title text (scaled 2x) like real "You Died!" screen
+                                var matrices = ctx.getMatrices();
+                                matrices.pushMatrix();
+                                matrices.scale(2.0f, 2.0f);
                                 ctx.drawCenteredTextWithShadow(textRenderer,
-                                        Text.literal("\u00a7f\u00a7l" + msg),
-                                        width / 2, height / 2 - 30, 0xFFFFFFFF);
+                                        Text.literal(msg).copy().formatted(net.minecraft.util.Formatting.WHITE, net.minecraft.util.Formatting.BOLD),
+                                        width / 4, height / 4 - 30, 0xFFFFFFFF);
+                                matrices.popMatrix();
+
+                                // Score display
+                                ctx.drawCenteredTextWithShadow(textRenderer,
+                                        Text.literal("\u00a77Score: \u00a7e\u00a7l0"),
+                                        width / 2, height / 2 - 10, 0xFFFFFFFF);
+
                                 long elapsed = System.currentTimeMillis() - fakeDeathStartTick;
-                                if (elapsed >= 8000) {
+                                boolean canRespawn = elapsed >= 8000;
+
+                                // Respawn button (200x20, centered, like real MC button)
+                                int btnW = 200, btnH = 20;
+                                int btnX = width / 2 - btnW / 2;
+                                int btnY = height / 2 + 16;
+                                boolean hovered = mx >= btnX && mx <= btnX + btnW && my >= btnY && my <= btnY + btnH;
+
+                                if (canRespawn) {
+                                    // Active button: light gray with white border on hover
+                                    int bg = hovered ? 0xFFA0A0A0 : 0xFF707070;
+                                    int border = hovered ? 0xFFFFFFFF : 0xFFA0A0A0;
+                                    ctx.fill(btnX - 1, btnY - 1, btnX + btnW + 1, btnY + btnH + 1, border);
+                                    ctx.fill(btnX, btnY, btnX + btnW, btnY + btnH, bg);
                                     ctx.drawCenteredTextWithShadow(textRenderer,
-                                            Text.literal("\u00a77Respawn"),
-                                            width / 2, height / 2 + 10, 0xFFAAAAAA);
+                                            Text.literal("Respawn"),
+                                            width / 2, btnY + 6, 0xFFFFFFFF);
                                 } else {
+                                    // Disabled button: dark gray
                                     int secs = (int)((8000 - elapsed) / 1000) + 1;
+                                    ctx.fill(btnX - 1, btnY - 1, btnX + btnW + 1, btnY + btnH + 1, 0xFF555555);
+                                    ctx.fill(btnX, btnY, btnX + btnW, btnY + btnH, 0xFF404040);
                                     ctx.drawCenteredTextWithShadow(textRenderer,
                                             Text.literal("\u00a78Respawn (" + secs + "s)"),
-                                            width / 2, height / 2 + 10, 0xFF555555);
+                                            width / 2, btnY + 6, 0xFF888888);
                                 }
-                                ctx.drawCenteredTextWithShadow(textRenderer,
-                                        Text.literal("\u00a78Score: \u00a7e0"),
-                                        width / 2, height / 2 + 40, 0xFFAAAAAA);
+
+                                // Title Screen button below (also like real death screen)
+                                int btn2Y = btnY + 26;
+                                boolean hovered2 = canRespawn && mx >= btnX && mx <= btnX + btnW && my >= btn2Y && my <= btn2Y + btnH;
+                                if (canRespawn) {
+                                    int bg2 = hovered2 ? 0xFFA0A0A0 : 0xFF707070;
+                                    int border2 = hovered2 ? 0xFFFFFFFF : 0xFFA0A0A0;
+                                    ctx.fill(btnX - 1, btn2Y - 1, btnX + btnW + 1, btn2Y + btnH + 1, border2);
+                                    ctx.fill(btnX, btn2Y, btnX + btnW, btn2Y + btnH, bg2);
+                                    ctx.drawCenteredTextWithShadow(textRenderer,
+                                            Text.literal("Title Screen"),
+                                            width / 2, btn2Y + 6, 0xFFFFFFFF);
+                                } else {
+                                    ctx.fill(btnX - 1, btn2Y - 1, btnX + btnW + 1, btn2Y + btnH + 1, 0xFF555555);
+                                    ctx.fill(btnX, btn2Y, btnX + btnW, btn2Y + btnH, 0xFF404040);
+                                    ctx.drawCenteredTextWithShadow(textRenderer,
+                                            Text.literal("\u00a78Title Screen"),
+                                            width / 2, btn2Y + 6, 0xFF888888);
+                                }
                             }
                             @Override
                             public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean bl) {
                                 long elapsed = System.currentTimeMillis() - fakeDeathStartTick;
                                 if (elapsed >= 8000) {
-                                    trollFakeDeath = false;
-                                    this.close();
+                                    // Check if either button was clicked
+                                    int btnW = 200, btnH = 20;
+                                    int btnX = width / 2 - btnW / 2;
+                                    int btnY = height / 2 + 16;
+                                    int btn2Y = btnY + 26;
+                                    double cmx = click.x(), cmy = click.y();
+                                    if ((cmx >= btnX && cmx <= btnX + btnW && cmy >= btnY && cmy <= btnY + btnH)
+                                        || (cmx >= btnX && cmx <= btnX + btnW && cmy >= btn2Y && cmy <= btn2Y + btnH)) {
+                                        trollFakeDeath = false;
+                                        this.close();
+                                    }
                                 }
                                 return true;
                             }

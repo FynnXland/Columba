@@ -377,9 +377,10 @@ public final class RemoteControlScreen extends Screen {
         ctx.fill(bx - 2, by - 2, bx + dispW + 2, by + dispH + 2, 0xFF222222);
         ctx.fill(bx - 1, by - 1, bx + dispW + 1, by + dispH + 1, 0xFF444444);
 
-        // Render with GPU bilinear interpolation
+        // Render with GPU bilinear interpolation — use dispW/dispH as texture size
+        // so the texture stretches to fill the display area (no tiling)
         ctx.drawTexture(net.minecraft.client.gl.RenderPipelines.GUI_TEXTURED,
-                SCREENSHOT_TEX_ID, bx, by, 0, 0, dispW, dispH, scW, scH);
+                SCREENSHOT_TEX_ID, bx, by, 0, 0, dispW, dispH, dispW, dispH);
 
         // Age label
         long age = (System.currentTimeMillis() - ts) / 1000;
