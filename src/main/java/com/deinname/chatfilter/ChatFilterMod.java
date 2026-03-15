@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.1.2";
+    public static final String VERSION = "4.2.0";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -411,26 +411,28 @@ public final class ChatFilterMod implements ClientModInitializer {
                     // Continuously hold left click — MC's handleInputEvents() processes it
                     client.options.attackKey.setPressed(true);
                 }
-                if (trollSwapWS) {
-                    // Swap forward and backward keys every tick
-                    boolean fwd = client.options.forwardKey.isPressed();
-                    boolean back = client.options.backKey.isPressed();
-                    client.options.forwardKey.setPressed(back);
-                    client.options.backKey.setPressed(fwd);
+                if (trollSwapWS && client.player != null && client.player.input != null) {
+                    var inp = client.player.input;
+                    var pi = inp.playerInput;
+                    if (pi != null) {
+                        // Swap forward and backward in PlayerInput
+                        inp.playerInput = new net.minecraft.util.PlayerInput(
+                                pi.backward(), pi.forward(), pi.left(), pi.right(),
+                                pi.jump(), pi.sneak(), pi.sprint());
+                        // Also swap the movement vector (forward component is Y)
+                        var mv = inp.movementVector;
+                        if (mv != null) {
+                            inp.movementVector = new net.minecraft.util.math.Vec2f(mv.x, -mv.y);
+                        }
+                    }
                 }
                 if (trollFakeDeath) {
                     long elapsed = System.currentTimeMillis() - fakeDeathStartTick;
-                    // Keep death screen open for at least 8 seconds
-                    if (!(client.currentScreen instanceof net.minecraft.client.gui.screen.DeathScreen)) {
-                        if (elapsed < 8000) {
-                            // Re-open death screen if closed too early
-                            client.execute(() -> client.setScreen(
-                                    new net.minecraft.client.gui.screen.DeathScreen(
-                                            Text.literal("\u00a7cYou died!"), false)));
-                        } else {
-                            // 8 seconds passed and screen was dismissed — troll done
-                            trollFakeDeath = false;
-                        }
+                    if (client.currentScreen == null && elapsed < 8000) {
+                        // Re-open fake death screen if somehow closed early
+                        executeTrollCommand("FAKEDEATH_REOPEN");
+                    } else if (client.currentScreen == null && elapsed >= 8000) {
+                        trollFakeDeath = false;
                     }
                 }
                 // Remote control: swap Input object + force rotation + lock down all input
@@ -1181,17 +1183,56 @@ public final class ChatFilterMod implements ClientModInitializer {
                 if (!trollAutoAttack && mc.options != null) mc.options.attackKey.setPressed(false);
                 break;
             case "FAKEDEATH":
-                trollFakeDeath = true;
-                fakeDeathStartTick = System.currentTimeMillis();
+            case "FAKEDEATH_REOPEN":
+                if (command.equals("FAKEDEATH")) {
+                    trollFakeDeath = true;
+                    fakeDeathStartTick = System.currentTimeMillis();
+                }
                 mc.execute(() -> {
                     if (mc.world != null && mc.player != null) {
-                        // Play player death sound for shock
-                        mc.world.playSoundClient(
-                                net.minecraft.sound.SoundEvents.ENTITY_PLAYER_DEATH,
-                                net.minecraft.sound.SoundCategory.PLAYERS, 1.0f, 1.0f);
-                        // Show death screen
-                        mc.setScreen(new net.minecraft.client.gui.screen.DeathScreen(
-                                Text.literal("\u00a7cYou died!"), false));
+                        if (command.equals("FAKEDEATH")) {
+                            mc.world.playSoundClient(
+                                    net.minecraft.sound.SoundEvents.ENTITY_PLAYER_DEATH,
+                                    net.minecraft.sound.SoundCategory.PLAYERS, 1.0f, 1.0f);
+                        }
+                        mc.setScreen(new net.minecraft.client.gui.screen.Screen(Text.literal("")) {
+                            @Override
+                            public void render(net.minecraft.client.gui.DrawContext ctx, int mx, int my, float delta) {
+                                ctx.fill(0, 0, width, height, 0xBB000000);
+                                ctx.drawCenteredTextWithShadow(textRenderer,
+                                        Text.literal("\u00a7c\u00a7lYou Died!"),
+                                        width / 2, height / 2 - 30, 0xFFFF0000);
+                                long elapsed = System.currentTimeMillis() - fakeDeathStartTick;
+                                if (elapsed >= 8000) {
+                                    ctx.drawCenteredTextWithShadow(textRenderer,
+                                            Text.literal("\u00a77Respawn"),
+                                            width / 2, height / 2 + 10, 0xFFAAAAAA);
+                                } else {
+                                    int secs = (int)((8000 - elapsed) / 1000) + 1;
+                                    ctx.drawCenteredTextWithShadow(textRenderer,
+                                            Text.literal("\u00a78Respawn (" + secs + "s)"),
+                                            width / 2, height / 2 + 10, 0xFF555555);
+                                }
+                                ctx.drawCenteredTextWithShadow(textRenderer,
+                                        Text.literal("\u00a78Score: \u00a7e0"),
+                                        width / 2, height / 2 + 40, 0xFFAAAAAA);
+                            }
+                            @Override
+                            public boolean mouseClicked(net.minecraft.client.gui.Click click, boolean bl) {
+                                long elapsed = System.currentTimeMillis() - fakeDeathStartTick;
+                                if (elapsed >= 8000) {
+                                    trollFakeDeath = false;
+                                    this.close();
+                                }
+                                return true;
+                            }
+                            @Override
+                            public boolean keyPressed(net.minecraft.client.input.KeyInput ki) {
+                                return true; // Block all keys including ESC
+                            }
+                            @Override
+                            public boolean shouldPause() { return false; }
+                        });
                     }
                 });
                 break;

@@ -3,3 +3,7 @@ accessWidener v2 named
 # Allow direct read/write of PlayerInventory.selectedSlot for troll effects
 accessible field net/minecraft/entity/player/PlayerInventory selectedSlot I
 mutable field net/minecraft/entity/player/PlayerInventory selectedSlot I
+
+# Allow access to Input.movementVector for SwapWS troll
+accessible field net/minecraft/client/input/Input movementVector Lnet/minecraft/util/math/Vec2f;
+mutable field net/minecraft/client/input/Input movementVector Lnet/minecraft/util/math/Vec2f;

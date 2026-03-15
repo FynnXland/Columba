@@ -267,7 +267,7 @@ public final class AdminConfig {
     private static volatile long screenshotTimestamp = 0;
 
     // ── Admin-side capture settings (video = RC live feed, screenshot = on-demand) ──
-    public static volatile int videoW = 160, videoH = 90;
+    public static volatile int videoW = 240, videoH = 135;
     public static volatile float videoSpf = 3f; // seconds per frame during RC
     public static volatile int ssW = 80, ssH = 45; // on-demand screenshot resolution
 

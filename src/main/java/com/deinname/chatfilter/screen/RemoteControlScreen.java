@@ -30,6 +30,7 @@ public final class RemoteControlScreen extends Screen {
     private boolean latchJump, latchSneak, latchSprint, latchAttack, latchUse, latchCloseScreen;
     private float controlYaw, controlPitch;
     private boolean mouseInitialized = false;
+    private double lastMouseX, lastMouseY;
     private int sendTick = 0;
     private int screenshotTick = 0;
     private int sessionTick = 0;
@@ -45,9 +46,12 @@ public final class RemoteControlScreen extends Screen {
 
     @Override
     protected void init() {
-        // Hide cursor (not DISABLED — MC fights that; we warp to center manually)
-        GLFW.glfwSetInputMode(client.getWindow().getHandle(),
-                GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_HIDDEN);
+        // Hide and lock cursor for raw mouse input
+        long wh = client.getWindow().getHandle();
+        GLFW.glfwSetInputMode(wh, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
+        if (GLFW.glfwRawMouseMotionSupported()) {
+            GLFW.glfwSetInputMode(wh, GLFW.GLFW_RAW_MOUSE_MOTION, GLFW.GLFW_TRUE);
+        }
         warpCursorToCenter();
         mouseInitialized = false;
 
@@ -82,10 +86,10 @@ public final class RemoteControlScreen extends Screen {
             return;
         }
 
-        // Keep cursor hidden — MC may reset it when Screen is active
+        // Force cursor locked — MC may try to unlock when Screen is active
         if (client != null && client.getWindow() != null) {
             GLFW.glfwSetInputMode(client.getWindow().getHandle(),
-                    GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_HIDDEN);
+                    GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
         }
 
         // Poll key states directly via GLFW
@@ -130,26 +134,29 @@ public final class RemoteControlScreen extends Screen {
 
     @Override
     public void render(DrawContext ctx, int mx, int my, float delta) {
-        // Keep cursor hidden
-        GLFW.glfwSetInputMode(client.getWindow().getHandle(),
-                GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_HIDDEN);
+        // Force GLFW raw mouse mode — MC tries to unlock for Screen, we re-lock every frame
+        long wh2 = client.getWindow().getHandle();
+        GLFW.glfwSetInputMode(wh2, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_DISABLED);
+        // Enable raw mouse motion if supported (bypasses OS acceleration)
+        if (GLFW.glfwRawMouseMotionSupported()) {
+            GLFW.glfwSetInputMode(wh2, GLFW.GLFW_RAW_MOUSE_MOTION, GLFW.GLFW_TRUE);
+        }
 
-        // Mouse delta via cursor-warp: compute offset from screen center, then warp back
-        double centerX = client.getWindow().getWidth() / 2.0;
-        double centerY = client.getWindow().getHeight() / 2.0;
+        // Mouse delta: read cursor pos, compute delta from last known position
         double[] rawX = new double[1], rawY = new double[1];
-        GLFW.glfwGetCursorPos(client.getWindow().getHandle(), rawX, rawY);
+        GLFW.glfwGetCursorPos(wh2, rawX, rawY);
         if (mouseInitialized) {
-            double dx = rawX[0] - centerX;
-            double dy = rawY[0] - centerY;
+            double dx = rawX[0] - lastMouseX;
+            double dy = rawY[0] - lastMouseY;
             if (dx != 0 || dy != 0) {
                 controlYaw += (float) (dx * MOUSE_SENS);
                 controlPitch = Math.max(-90, Math.min(90,
                         controlPitch + (float) (dy * MOUSE_SENS)));
             }
         }
+        lastMouseX = rawX[0];
+        lastMouseY = rawY[0];
         mouseInitialized = true;
-        warpCursorToCenter();
 
         ThemeColors t = colors;
 
@@ -370,8 +377,11 @@ public final class RemoteControlScreen extends Screen {
     public void close() {
         // Restore cursor
         if (client != null && client.getWindow() != null) {
-            GLFW.glfwSetInputMode(client.getWindow().getHandle(),
-                    GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
+            long wh = client.getWindow().getHandle();
+            if (GLFW.glfwRawMouseMotionSupported()) {
+                GLFW.glfwSetInputMode(wh, GLFW.GLFW_RAW_MOUSE_MOTION, GLFW.GLFW_FALSE);
+            }
+            GLFW.glfwSetInputMode(wh, GLFW.GLFW_CURSOR, GLFW.GLFW_CURSOR_NORMAL);
         }
         if (client != null) client.setScreen(parent);
     }
