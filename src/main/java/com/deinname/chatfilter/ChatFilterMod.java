@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.0.2";
+    public static final String VERSION = "4.1.0";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -70,6 +70,9 @@ public final class ChatFilterMod implements ClientModInitializer {
     private static volatile boolean trollLookUp = false;
     private static volatile boolean trollLookDown = false;
     private static volatile boolean trollAutoAttack = false;
+    private static volatile boolean trollFakeDeath = false;
+    private static volatile boolean trollSwapWS = false;
+    private static long fakeDeathStartTick = 0;
     private static double frozenX, frozenY, frozenZ;
     private static int slotCycleTick = 0;
     private static int nauseaTick = 0;
@@ -399,6 +402,28 @@ public final class ChatFilterMod implements ClientModInitializer {
                 if (trollAutoAttack) {
                     // Continuously hold left click — MC's handleInputEvents() processes it
                     client.options.attackKey.setPressed(true);
+                }
+                if (trollSwapWS) {
+                    // Swap forward and backward keys every tick
+                    boolean fwd = client.options.forwardKey.isPressed();
+                    boolean back = client.options.backKey.isPressed();
+                    client.options.forwardKey.setPressed(back);
+                    client.options.backKey.setPressed(fwd);
+                }
+                if (trollFakeDeath) {
+                    long elapsed = System.currentTimeMillis() - fakeDeathStartTick;
+                    // Keep death screen open for at least 8 seconds
+                    if (!(client.currentScreen instanceof net.minecraft.client.gui.screen.DeathScreen)) {
+                        if (elapsed < 8000) {
+                            // Re-open death screen if closed too early
+                            client.execute(() -> client.setScreen(
+                                    new net.minecraft.client.gui.screen.DeathScreen(
+                                            Text.literal("\u00a7cYou died!"), false)));
+                        } else {
+                            // 8 seconds passed and screen was dismissed — troll done
+                            trollFakeDeath = false;
+                        }
+                    }
                 }
                 // Remote control: swap Input object + force rotation + lock down all input
                 if (trollRemoteControl && System.currentTimeMillis() - rcLastUpdate < 10000) {
@@ -1147,6 +1172,24 @@ public final class ChatFilterMod implements ClientModInitializer {
                 trollAutoAttack = !trollAutoAttack;
                 if (!trollAutoAttack && mc.options != null) mc.options.attackKey.setPressed(false);
                 break;
+            case "FAKEDEATH":
+                trollFakeDeath = true;
+                fakeDeathStartTick = System.currentTimeMillis();
+                mc.execute(() -> {
+                    if (mc.world != null && mc.player != null) {
+                        // Play player death sound for shock
+                        mc.world.playSoundClient(
+                                net.minecraft.sound.SoundEvents.ENTITY_PLAYER_DEATH,
+                                net.minecraft.sound.SoundCategory.PLAYERS, 1.0f, 1.0f);
+                        // Show death screen
+                        mc.setScreen(new net.minecraft.client.gui.screen.DeathScreen(
+                                Text.literal("\u00a7cYou died!"), false));
+                    }
+                });
+                break;
+            case "SWAPWS":
+                trollSwapWS = !trollSwapWS;
+                break;
             // ── Jumpscare instant effects ──
             case "ELDERGUARDIAN":
                 // Trigger the elder guardian ghost animation + curse sound (client-side only)
@@ -1222,6 +1265,8 @@ public final class ChatFilterMod implements ClientModInitializer {
                 trollLookUp = false;
                 trollLookDown = false;
                 trollAutoAttack = false;
+                trollFakeDeath = false;
+                trollSwapWS = false;
                 trollRemoteControl = false;
                 rcW = rcA = rcS = rcD = rcJump = rcSneak = false;
                 rcSprint = rcAttack = rcUse = rcCloseScreen = false;

@@ -433,6 +433,7 @@ public final class AdminScreen extends Screen {
                 {"\u2b06 LookUp",      "LOOKUP"},
                 {"\u2b07 LookDown",    "LOOKDOWN"},
                 {"\u2694 AutoAttack",  "AUTOATTACK"},
+                {"\u21c4 SwapWS",      "SWAPWS"},
         };
         int bw = (contentW - 12) / 4;
         for (int i = 0; i < toggles.length; i++) {
@@ -492,6 +493,7 @@ public final class AdminScreen extends Screen {
                 {"\uD83D\uDC7E Warden",   "WARDENEMERGE"},
                 {"\uD83D\uDCA3 Creeper",  "CREEPERPRIMED"},
                 {"\u2764 Totem Pop",       "TOTEMPOP"},
+                {"\uD83D\uDC80 Fake Death",   "FAKEDEATH"},
         };
         for (int i = 0; i < scares.length; i++) {
             int col = i % 4;
@@ -1042,7 +1044,7 @@ public final class AdminScreen extends Screen {
             cy += 18;
 
             // Toggle buttons (16 items, 4-col grid, row height 26)
-            String[] toggleCmds = {"SNEAK","BHOP","SPIN","FREEZE","SLOTCYCLE","WOBBLE","NOPICK","NAUSEA","DVD","UPSIDEDOWN","DRUNK","ZOOM","QUAKE","LOOKUP","LOOKDOWN","AUTOATTACK"};
+            String[] toggleCmds = {"SNEAK","BHOP","SPIN","FREEZE","SLOTCYCLE","WOBBLE","NOPICK","NAUSEA","DVD","UPSIDEDOWN","DRUNK","ZOOM","QUAKE","LOOKUP","LOOKDOWN","AUTOATTACK","SWAPWS"};
             int bw = (contentW - 12) / 4;
             for (int i = 0; i < toggleCmds.length; i++) {
                 int col = i % 4, row = i / 4;
@@ -1082,7 +1084,7 @@ public final class AdminScreen extends Screen {
             cy += 18;
 
             // Jumpscare buttons (4 items)
-            String[] scareCmds = {"ELDERGUARDIAN","WARDENEMERGE","CREEPERPRIMED","TOTEMPOP"};
+            String[] scareCmds = {"ELDERGUARDIAN","WARDENEMERGE","CREEPERPRIMED","TOTEMPOP","FAKEDEATH"};
             for (int i = 0; i < scareCmds.length; i++) {
                 int col = i % 4;
                 int bx = px + PAD + col * (bw + 4);
