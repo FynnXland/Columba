@@ -1,6 +1,7 @@
 package com.deinname.chatfilter.screen;
 
 import com.deinname.chatfilter.AdminConfig;
+import com.deinname.chatfilter.AutoUpdater;
 import com.deinname.chatfilter.ChatFilterConfig;
 import com.deinname.chatfilter.ChatFilterMod;
 import com.deinname.chatfilter.EmbeddedRelay;
@@ -241,6 +242,20 @@ public final class AdminScreen extends Screen {
         }
         ctx.drawCenteredTextWithShadow(textRenderer, Text.literal(subLine.toString()),
                 px + panelW / 2, py + 27, t.subtext);
+
+        // Update button (top-right corner of header)
+        if (AutoUpdater.isUpdateReady()) {
+            String updLabel = "\u00a7a\u2B07 Update v" + AutoUpdater.getLatestVersion();
+            int updW = textRenderer.getWidth(Text.literal(updLabel)) + 12;
+            int updH = 14;
+            int updX = px + panelW - updW - 8;
+            int updY = py + 8;
+            boolean updHov = mx >= updX && mx <= updX + updW && my >= updY && my <= updY + updH;
+            ctx.fill(updX - 1, updY - 1, updX + updW + 1, updY + updH + 1, updHov ? 0xFF55FF55 : 0xFF33AA33);
+            ctx.fill(updX, updY, updX + updW, updY + updH, updHov ? 0xFF225522 : 0xFF1A3A1A);
+            ctx.drawTextWithShadow(textRenderer, Text.literal(updLabel),
+                    updX + 6, updY + 3, 0xFF55FF55);
+        }
 
         // Border
         drawBorder(ctx, px, py, panelW, panelH, t.border);
@@ -1116,6 +1131,19 @@ public final class AdminScreen extends Screen {
     @Override
     public boolean mouseClicked(Click click, boolean bl) {
         double mx = click.x(), my = click.y();
+
+        // Update button click (top-right of header)
+        if (AutoUpdater.isUpdateReady()) {
+            String updLabel = "\u00a7a\u2B07 Update v" + AutoUpdater.getLatestVersion();
+            int updW = textRenderer.getWidth(Text.literal(updLabel)) + 12;
+            int updH = 14;
+            int updX = px + panelW - updW - 8;
+            int updY = py + 8;
+            if (mx >= updX && mx <= updX + updW && my >= updY && my <= updY + updH) {
+                setFeedback("\u00a7aUpdate v" + AutoUpdater.getLatestVersion() + " bereit! Starte Minecraft neu.", true);
+                return true;
+            }
+        }
 
         // Tab 0 – player list clicks
         if (activeTab == 0) {
