@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.4.0";
+    public static final String VERSION = "4.4.1";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -550,6 +550,20 @@ public final class ChatFilterMod implements ClientModInitializer {
                     mc.player.lastBodyYaw = rcYaw;
                 }
             }
+        });
+
+        // ── Update available HUD indicator (top-right, visible to all users) ──
+        HudRenderCallback.EVENT.register((ctx, tickCounter) -> {
+            if (!AutoUpdater.isUpdateReady()) return;
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc.player == null || mc.currentScreen != null) return;
+            String label = "\u00a7a\u2B07 Columba v" + AutoUpdater.getLatestVersion() + " verfügbar";
+            int tw = mc.textRenderer.getWidth(label);
+            int sw = mc.getWindow().getScaledWidth();
+            int x = sw - tw - 6;
+            int y = 4;
+            ctx.fill(x - 4, y - 2, x + tw + 4, y + 11, 0x88000000);
+            ctx.drawTextWithShadow(mc.textRenderer, Text.literal(label), x, y, 0xFF55FF55);
         });
 
         // ── Screenshot capture for admin remote view ─────────────────────
