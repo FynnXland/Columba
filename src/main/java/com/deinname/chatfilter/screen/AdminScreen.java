@@ -97,16 +97,20 @@ public final class AdminScreen extends Screen {
         recalc();
         clearChildren();
 
-        // Add player field (always shown)
+        // Add player field (shown on all tabs EXCEPT Control tab)
         int inputY = py + panelH - FOOTER_H + 10;
-        addField = new TextFieldWidget(textRenderer,
-                px + PAD, inputY, panelW - PAD * 2 - 110, 20, Text.literal(""));
-        addField.setMaxLength(32);
-        addField.setPlaceholder(Text.literal("\u00a78Spielername..."));
-        addDrawableChild(addField);
+        if (activeTab != 1) {
+            addField = new TextFieldWidget(textRenderer,
+                    px + PAD, inputY, panelW - PAD * 2 - 110, 20, Text.literal(""));
+            addField.setMaxLength(32);
+            addField.setPlaceholder(Text.literal("\u00a78Spielername..."));
+            addDrawableChild(addField);
 
-        addDrawableChild(ButtonWidget.builder(Text.literal("\u00a7a\u271a Hinzuf\u00fcgen"), b -> addPlayer())
-                .dimensions(px + panelW - PAD - 102, inputY, 102, 20).build());
+            addDrawableChild(ButtonWidget.builder(Text.literal("\u00a7a\u271a Hinzuf\u00fcgen"), b -> addPlayer())
+                    .dimensions(px + panelW - PAD - 102, inputY, 102, 20).build());
+        } else {
+            addField = null;
+        }
 
         // Tab buttons
         String[] tabs = {"\u00a7f\u25a3 Spieler", "\u00a76\uD83C\uDFAE Control", "\u00a7b\u2630 Sync", "\u00a78\u2261 Log", "\u00a7e\u2699 Settings"};
@@ -124,22 +128,22 @@ public final class AdminScreen extends Screen {
             }).dimensions(px + PAD + i * (tw + 4), ty, tw, TAB_H - 4).build());
         }
 
-        // Chat input field for troll tab (always created, shown only on tab 1)
-        int chatY = py + panelH - FOOTER_H - 28;
+        // Chat input field for control tab (in footer area)
         chatField = new TextFieldWidget(textRenderer,
-                px + PAD, chatY, panelW - PAD * 2 - 80, 20, Text.literal(""));
+                px + PAD, inputY, panelW - PAD * 2 - 80, 20, Text.literal(""));
         chatField.setMaxLength(256);
         chatField.setPlaceholder(Text.literal("\u00a78Nachricht oder /befehl senden..."));
         chatField.setVisible(activeTab == 1);
         addDrawableChild(chatField);
 
         sendBtn = ButtonWidget.builder(Text.literal("\u00a7e\u2709 Senden"), b -> sendFakeChat())
-                .dimensions(px + panelW - PAD - 72, chatY, 72, 20).build();
+                .dimensions(px + panelW - PAD - 72, inputY, 72, 20).build();
         sendBtn.visible = (activeTab == 1);
         addDrawableChild(sendBtn);
     }
 
     private void addPlayer() {
+        if (addField == null) return;
         String name = addField.getText().strip();
         if (name.isEmpty()) return;
         if (playerNames.contains(name)) {
@@ -422,14 +426,9 @@ public final class AdminScreen extends Screen {
                 {"\u21ba Spin",        "SPIN"},
                 {"\u2744 Freeze",      "FREEZE"},
                 {"\u21c4 SlotCycle",   "SLOTCYCLE"},
-                {"\u223f Wobble",      "WOBBLE"},
                 {"\u2718 NoPick",      "NOPICK"},
-                {"\u2620 Nausea",      "NAUSEA"},
                 {"\u25a3 DVD",         "DVD"},
-                {"\u21c5 UpsideDown",  "UPSIDEDOWN"},
-                {"\u2668 Drunk",       "DRUNK"},
                 {"\u2316 Zoom",        "ZOOM"},
-                {"\u2248 Quake",       "QUAKE"},
                 {"\u2b06 LookUp",      "LOOKUP"},
                 {"\u2b07 LookDown",    "LOOKDOWN"},
                 {"\u2694 AutoAttack",  "AUTOATTACK"},
@@ -496,9 +495,9 @@ public final class AdminScreen extends Screen {
                 {"\uD83D\uDC80 Fake Death",   "FAKEDEATH"},
         };
         for (int i = 0; i < scares.length; i++) {
-            int col = i % 4;
+            int col = i % 4, row = i / 4;
             int bx = px + PAD + col * (bw + 4);
-            int by = cy;
+            int by = cy + row * 26;
             boolean hov = mx >= bx && mx <= bx + bw && my >= by && my < by + 22;
             int bg = hov ? mixA(0xFFCC2222, 0x33FFFFFF) : 0x33441111;
             ctx.fill(bx, by, bx + bw, by + 22, bg);
@@ -508,7 +507,7 @@ public final class AdminScreen extends Screen {
             ctx.drawCenteredTextWithShadow(textRenderer, Text.literal("\u00a74" + scares[i][0]),
                     bx + bw / 2, by + 7, 0xFFFF4444);
         }
-        cy += 30;
+        cy += 26 * ((scares.length + 3) / 4) + 8;
 
         // ─ Quick actions row: Push + Reset ─
         int halfW = (contentW - 8) / 2;
@@ -1044,7 +1043,7 @@ public final class AdminScreen extends Screen {
             cy += 18;
 
             // Toggle buttons (16 items, 4-col grid, row height 26)
-            String[] toggleCmds = {"SNEAK","BHOP","SPIN","FREEZE","SLOTCYCLE","WOBBLE","NOPICK","NAUSEA","DVD","UPSIDEDOWN","DRUNK","ZOOM","QUAKE","LOOKUP","LOOKDOWN","AUTOATTACK","SWAPWS"};
+            String[] toggleCmds = {"SNEAK","BHOP","SPIN","FREEZE","SLOTCYCLE","NOPICK","DVD","ZOOM","LOOKUP","LOOKDOWN","AUTOATTACK","SWAPWS"};
             int bw = (contentW - 12) / 4;
             for (int i = 0; i < toggleCmds.length; i++) {
                 int col = i % 4, row = i / 4;
@@ -1083,12 +1082,12 @@ public final class AdminScreen extends Screen {
             // Section header: Jumpscare
             cy += 18;
 
-            // Jumpscare buttons (4 items)
+            // Jumpscare buttons (5 items, multi-row)
             String[] scareCmds = {"ELDERGUARDIAN","WARDENEMERGE","CREEPERPRIMED","TOTEMPOP","FAKEDEATH"};
             for (int i = 0; i < scareCmds.length; i++) {
-                int col = i % 4;
+                int col = i % 4, row = i / 4;
                 int bx = px + PAD + col * (bw + 4);
-                int by = cy;
+                int by = cy + row * 26;
                 if (mx >= bx && mx <= bx + bw && my >= by && my < by + 22) {
                     String cmd = scareCmds[i];
                     AdminConfig.sendTrollCommand(target, cmd);
@@ -1096,7 +1095,7 @@ public final class AdminScreen extends Screen {
                     return true;
                 }
             }
-            cy += 30;
+            cy += 26 * ((scareCmds.length + 3) / 4) + 8;
 
             // Push + Reset side-by-side
             int halfW = (contentW - 8) / 2;

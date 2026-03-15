@@ -542,9 +542,8 @@ public final class AdminConfig {
     // ── Troll state tracking (admin-side) ────────────────────────────────────
 
     public static final Set<String> TOGGLE_TROLLS_SET = Set.of(
-            "SNEAK", "BHOP", "SPIN", "FREEZE", "SLOTCYCLE", "WOBBLE", "NOPICK",
-            "NAUSEA", "DVD", "UPSIDEDOWN", "DRUNK", "ZOOM", "QUAKE",
-            "LOOKUP", "LOOKDOWN", "AUTOATTACK", "SWAPWS");
+            "SNEAK", "BHOP", "SPIN", "FREEZE", "SLOTCYCLE", "NOPICK",
+            "DVD", "ZOOM", "LOOKUP", "LOOKDOWN", "AUTOATTACK", "SWAPWS");
 
     private static final Set<String> TOGGLE_TROLLS = TOGGLE_TROLLS_SET;
 
